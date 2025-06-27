@@ -16,7 +16,7 @@
 
 4. Crie o arquivo .env
     ```bash
-    copy .env.example .env
+    copy app/.env.example /app/.env
     ```
 
 
