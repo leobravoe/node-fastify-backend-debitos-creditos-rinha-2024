@@ -1,12 +1,12 @@
 
 1. Clone o repositório:
     ```bash
-    git clone https://github.com/leobravoe/node-backend-2025.git
+    git clone https://github.com/leobravoe/node-fastfly-backend-2025.git
     ```
 
 2. Entre na pasta:
     ```bash
-    cd node-backend-2025
+    cd node-fastfly-backend-2025
     ```
 
 3. Utilize o comando para baixar os pacotes do composer.json:
@@ -19,11 +19,6 @@
     copy .env.example .env
     ```
 
-5. Rode o script SQL para criar o banco
-    ```bash
-    Rode o script SQL para criar o banco "fornatto_db_2"
-    ```
-
 
 Com o projeto configurado, para atualizar:
 
@@ -32,7 +27,7 @@ Com o projeto configurado, para atualizar:
     git clean -fd
     ```
 
-2. Reseta para o commit mais atual
+2. Reinicia para o commit mais atual
     ```bash
     git reset --hard
     ```
