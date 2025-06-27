@@ -2,11 +2,11 @@ const fastify = require('fastify')({ logger: true });
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: 'postgres',
+  host: 'localhost',
   port: 5432,         // Porta do servidor PostgreSQL
-  user: 'user',
-  password: 'password',
-  database: 'meu_banco'
+  user: 'postgres',
+  password: 'postgres',
+  database: 'postgres_api_db'
 });
 
 fastify.get('/', async (request, reply) => {
