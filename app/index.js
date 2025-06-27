@@ -10,11 +10,11 @@ const pool = new Pool({
 });
 
 fastify.get('/', async (request, reply) => {
-  const result = await pool.query('SELECT NOW()');
-  return {
-    instancia: process.env.HOSTNAME,
-    horario_db: result.rows[0].now
-  };
+  const result = await pool.query('SELECT now()');
+  console.log("-------------------------------");
+  console.log(result);
+  console.log("-------------------------------");
+  return result.rows;
 });
 
 const start = async () => {
