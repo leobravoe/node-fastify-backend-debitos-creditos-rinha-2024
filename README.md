@@ -4,19 +4,19 @@
     git clone https://github.com/leobravoe/node-fastfly-backend-2025.git
     ```
 
-2. Entre na pasta:
-    ```bash
-    cd node-fastfly-backend-2025
-    ```
-
-3. Utilize o comando para baixar os pacotes do composer.json:
-    ```bash
-    npm update --save
-    ```
-
-4. Crie o arquivo .env
+2. Crie o arquivo .env
     ```bash
     copy ./app/.env.example ./app/.env
+    ```
+
+3. Entre na pasta:
+    ```bash
+    cd node-fastfly-backend-2025/app
+    ```
+
+4. Utilize o comando para baixar os pacotes do composer.json:
+    ```bash
+    npm update --save
     ```
 
 
