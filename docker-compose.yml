@@ -1,38 +1,57 @@
-version: "3.8"
-
 services:
     postgres:
         image: postgres:15
         container_name: postgres
         restart: always
         environment:
-            POSTGRES_USER: user
-            POSTGRES_PASSWORD: password
-            POSTGRES_DB: meu_banco
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: postgres_api_db
+            POSTGRES_HOST_AUTH_METHOD: trust
         volumes:
             - pgdata:/var/lib/postgresql/data
         ports:
             - "5432:5432"
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d postgres_api_db"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
 
     app1:
         build: ./app
         container_name: app1
         environment:
             PORT: 3001
+            DB_HOST: postgres
+            DB_PORT: 5432
+            DB_USER: postgres
+            DB_PASSWORD: postgres
+            DB_DATABASE: postgres_api_db
         expose:
             - "3001"
         depends_on:
-            - postgres
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
 
     app2:
         build: ./app
         container_name: app2
         environment:
             PORT: 3002
+            DB_HOST: postgres
+            DB_PORT: 5432
+            DB_USER: postgres
+            DB_PASSWORD: postgres
+            DB_DATABASE: postgres_api_db
         expose:
             - "3002"
         depends_on:
-            - postgres
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
 
     nginx:
         image: nginx:latest
@@ -44,6 +63,7 @@ services:
         depends_on:
             - app1
             - app2
+        restart: unless-stopped
 
 volumes:
     pgdata:
