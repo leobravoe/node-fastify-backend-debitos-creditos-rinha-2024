@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # wait-for-it.sh script to wait for PostgreSQL to be ready
 
 set -e
@@ -9,7 +9,7 @@ cmd="$@"
 
 echo "Waiting for PostgreSQL to be ready..."
 
-until pg_isready -h "$host" -U "$DB_USER" -d "$DB_DATABASE"; do
+until pg_isready -h "$host" -p "$DB_PORT" -U "$DB_USER" -d "$DB_DATABASE"; do
   echo "PostgreSQL is unavailable - sleeping"
   sleep 2
 done

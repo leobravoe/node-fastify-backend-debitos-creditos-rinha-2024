@@ -20,7 +20,8 @@ fastify.get('/', async (request, reply) => {
         return {
             "result.rows": result.rows,
             "port": process.env.PORT,
-            "container": process.env.HOSTNAME
+            "container": process.env.HOSTNAME,
+            "DB_PORT": process.env.DB_PORT
         };
     } catch (error) {
         console.error('Error:', error);

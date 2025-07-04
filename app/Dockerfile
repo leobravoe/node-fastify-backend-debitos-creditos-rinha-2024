@@ -1,6 +1,6 @@
 FROM node:18
 
-# Install PostgreSQL client
+# Instala cliente PostgreSQL
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -10,10 +10,11 @@ RUN npm install
 
 COPY . .
 
-# Make wait-for-it script executable
-RUN chmod +x wait-for-it.sh
+# Torna o script executável e move para um local no PATH
+RUN chmod +x wait-for-it.sh && mv wait-for-it.sh /usr/local/bin/wait-for-it.sh
 
 EXPOSE 3000
 
-# Use wait-for-it script to ensure PostgreSQL is ready
-CMD ["./wait-for-it.sh", "postgres", "npm", "run", "start"]
+# Força o uso do bash para rodar o script corretamente
+CMD ["bash", "/usr/local/bin/wait-for-it.sh", "postgres", "--", "npm", "run", "start"]
+
