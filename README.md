@@ -21,6 +21,11 @@
    npm update --save
    ```
 
+5. Levante os containers e construa a aplicação:
+   ```bash
+   docker-compose up --build
+   ```
+
 Com o projeto configurado, para atualizar:
 
 1. Limpa para o commit mais atual
