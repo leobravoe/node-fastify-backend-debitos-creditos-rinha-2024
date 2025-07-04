@@ -1,7 +1,6 @@
 const fastify = require('fastify')({ logger: true });
 const { Pool } = require('pg');
 const dotenv = require("dotenv");
-const os = require('os');
 
 // Configura as variáveis de ambiente
 dotenv.config();

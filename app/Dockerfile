@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/ap
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm update --save
 
 COPY . .
 
