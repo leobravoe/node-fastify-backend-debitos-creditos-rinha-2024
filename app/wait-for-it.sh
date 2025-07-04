@@ -15,4 +15,4 @@ until pg_isready -h "$host" -p "$DB_PORT" -U "$DB_USER" -d "$DB_DATABASE"; do
 done
 
 echo "PostgreSQL is up - executing command"
-exec $cmd 
+exec $cmd
