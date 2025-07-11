@@ -15,7 +15,7 @@ const pool = new Pool({
 
 fastify.get('/', async (request, reply) => {
     try {
-        const result = await pool.query('SELECT now()');
+        const result = await pool.query('SELECT * from accounts');
         return {
             "result.rows": result.rows,
             "port": process.env.PORT,
