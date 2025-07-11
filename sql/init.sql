@@ -14,26 +14,16 @@ CREATE TABLE IF NOT EXISTS transactions (
     account_id INT
 );
 
-DO $ $ BEGIN IF NOT EXISTS (
-    SELECT
-        *
-    FROM
-        accounts
-    WHERE
-        id BETWEEN 1
-        AND 5
-) THEN
-INSERT INTO
-    accounts (account_limit, balance)
-VALUES
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT * FROM accounts WHERE id BETWEEN 1 AND 5) THEN
+    INSERT INTO accounts (account_limit, balance) 
+    VALUES 
     (100000, 0),
     (80000, 0),
     (1000000, 0),
     (10000000, 0),
     (500000, 0);
-
-END IF;
-
+  END IF;
 END;
-
-$ $;
+$$;
