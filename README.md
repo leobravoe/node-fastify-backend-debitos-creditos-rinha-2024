@@ -23,6 +23,16 @@
 
 5. Levante os containers e construa a aplicação:
    ```bash
+   docker volume ls
+   ```
+
+6. Levante os containers e construa a aplicação:
+   ```bash
+   docker volume rm node-fastfly-backend-2025_pgdata
+   ```
+
+7. Levante os containers e construa a aplicação:
+   ```bash
    docker-compose up --build
    ```
 

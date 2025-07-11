@@ -25,6 +25,8 @@ services:
         # Volume para persistência dos dados do banco
         volumes:
             - pgdata:/var/lib/postgresql/data
+            - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
 
         # Mapeamento de porta (host:container)
         # Permite acessar o banco via localhost:5433

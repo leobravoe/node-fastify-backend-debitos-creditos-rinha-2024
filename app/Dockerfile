@@ -36,14 +36,10 @@ RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/ap
 WORKDIR /app
 
 # ------------------------------------------------------------
-# Copia apenas os arquivos de manifesto de dependências.
-# - package.json
-# - package-lock.json (ou yarn.lock)
-#
-# Isso permite aproveitar o cache do Docker para o npm install
-# evitando reinstalar pacotes se apenas o código mudar.
+# Copia todos os outros arquivos da aplicação para o container.
+# Isso inclui o código-fonte, scripts, assets e outros recursos necessários.
 # ------------------------------------------------------------
-COPY package*.json ./
+COPY . .
 
 # ------------------------------------------------------------
 # Atualiza as dependências do projeto para as versões mais recentes
@@ -53,35 +49,10 @@ COPY package*.json ./
 # - npm update não é o mesmo que npm install
 # - Em produção, geralmente se prefere npm install para builds mais previsíveis.
 # ------------------------------------------------------------
-RUN npm update --save
-
-# ------------------------------------------------------------
-# Copia todos os outros arquivos da aplicação para o container.
-# Isso inclui o código-fonte, scripts, assets e outros recursos necessários.
-# ------------------------------------------------------------
-COPY . .
-
-# ------------------------------------------------------------
-# Torna o script wait-for-it.sh executável.
-# Este script é usado para "esperar" até outro serviço (como o banco de dados)
-# estar pronto para conexões antes de iniciar a aplicação.
-#
-# Em seguida, move o script para um local no PATH (/usr/local/bin)
-# permitindo chamá-lo de qualquer lugar sem precisar do caminho relativo.
-# ------------------------------------------------------------
-RUN chmod +x wait-for-it.sh && mv wait-for-it.sh /usr/local/bin/wait-for-it.sh
-
-# ------------------------------------------------------------
-# Expõe a porta 3000 no container, que é onde o servidor Node.js escutará.
-# Essa instrução é apenas informativa para o Docker, o mapeamento real é feito no docker run ou compose.
-# ------------------------------------------------------------
-EXPOSE 3000
+RUN npm install
 
 # ------------------------------------------------------------
 # Define o comando padrão para quando o container iniciar.
-#
-# Usa bash para executar o wait-for-it.sh, passando o host do banco de dados "postgres".
-# O script espera o banco ficar pronto antes de rodar "npm run start" para iniciar o servidor.
-# Isso previne erros de conexão por tentar acessar o banco antes dele estar disponível.
+# "npm run start" para iniciar o servidor.
 # ------------------------------------------------------------
-CMD ["bash", "/usr/local/bin/wait-for-it.sh", "postgres", "--", "npm", "run", "start"]
+CMD ["npm", "run", "start"]
