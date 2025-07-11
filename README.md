@@ -23,7 +23,7 @@
 
 5. Levante os containers e construa a aplicação:
    ```bash
-   docker volume ls
+   docker-compose down -v
    ```
 
 6. Levante os containers e construa a aplicação:
