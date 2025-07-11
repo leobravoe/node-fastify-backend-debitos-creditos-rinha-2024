@@ -27,6 +27,16 @@ fastify.get('/', async (request, reply) => {
     }
 });
 
+fastify.post('/clientes/:id/transacoes', async (request, reply) => {
+    return {
+        "id": request.params.id,
+        "body": request.body,
+        "port": process.env.PORT,
+        "container": process.env.HOSTNAME,
+        "DB_PORT": process.env.DB_PORT
+    };
+});
+
 const start = async () => {
     try {
         await fastify.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' });
