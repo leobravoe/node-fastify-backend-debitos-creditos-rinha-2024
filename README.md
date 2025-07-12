@@ -21,7 +21,7 @@
 
 Com o projeto configurado, para atualizar:
 
-1. O comando git clean -fd remove de forma forçada (-f) todos os arquivos e diretórios não rastreados (-d) no repositório local, ou seja, apaga itens que não estão sob controle do Git, como arquivos temporários ou pastas criadas manualmente, ajudando a limpar o diretório de trabalho:
+1. O comando git reset --hard move o ponteiro do branch atual para um commit específico (ou para o último commit se nenhum for especificado) e descarta todas as alterações locais no diretório de trabalho e no índice (staging area), revertendo completamente os arquivos para o estado exato do commit alvo, apagando modificações não commitadas de forma irreversível:
 
    ```bash
    git reset --hard
