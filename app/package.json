@@ -4,8 +4,7 @@
     "main": "index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "start": "node index.js",
-        "dev": "nodemon index.js"
+        "start": "node index.js"
     },
     "author": "",
     "license": "ISC",
@@ -15,8 +14,5 @@
         "dotenv": "^16.6.1",
         "fastify": "^5.4.0",
         "pg": "^8.16.3"
-    },
-    "devDependencies": {
-        "nodemon": "^3.1.10"
     }
 }

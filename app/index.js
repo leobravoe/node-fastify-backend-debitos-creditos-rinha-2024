@@ -1,4 +1,4 @@
-const fastify = require('fastify')({ logger: true });
+const fastify = require('fastify')();
 const { Pool } = require('pg');
 const dotenv = require("dotenv");
 
