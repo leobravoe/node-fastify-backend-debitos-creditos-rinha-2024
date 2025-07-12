@@ -90,12 +90,7 @@ fastify.get('/clientes/:id/extrato', async (request, reply) => {
                 data_extrato: new Date().toISOString(),
                 limite: account_limit
             },
-            ultimas_transacoes: transactions.map(t => ({
-                valor: t.amount,
-                tipo: t.type,
-                descricao: t.description,
-                realizada_em: t.created_at.toISOString()
-            }))
+            ultimas_transacoes: transactions
         };
 
         return reply.status(200).send(extrato);
