@@ -106,7 +106,7 @@ services:
         # Mapeia porta do host para o container
         # A configuração do NGINX precisa escutar nessa porta
         ports:
-            - "5555:5555"
+            - "9999:9999"
 
         # Monta o arquivo de configuração customizado
         volumes:
