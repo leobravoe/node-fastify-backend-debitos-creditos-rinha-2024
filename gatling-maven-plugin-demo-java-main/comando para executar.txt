@@ -1,1 +1,5 @@
-mvnw clean compile test-compile gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
+  -c "TRUNCATE TABLE transactions" ^
+  -c "UPDATE accounts SET balance = 0" ^
+&& mvnw.cmd clean compile test-compile gatling:test ^
+   -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
