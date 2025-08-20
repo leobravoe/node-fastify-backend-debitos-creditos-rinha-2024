@@ -71,9 +71,13 @@ fastify.get('/clientes/:id/extrato', async (request, reply) => {
 
         const { account_limit, balance } = accountRows[0];
 
-        // Busca as 10 últimas transações ordenadas por data (desc)
+        // Busca as 10 últimas transações com nomes de campos conforme esperado pelo teste
         const { rows: transactions } = await client.query(
-            `SELECT amount, type, description, created_at
+            `SELECT 
+                amount AS valor,
+                type   AS tipo,
+                description AS descricao,
+                created_at  AS realizada_em
              FROM transactions
              WHERE account_id = $1
              ORDER BY created_at DESC

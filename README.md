@@ -16,7 +16,7 @@
 
 4. O comando docker-compose up --build cria e inicia os containers definidos no docker-compose.yml, forçando a reconstrução das imagens mesmo que já existam em cache, garantindo que quaisquer alterações no Dockerfile ou no contexto de build sejam aplicadas antes de subir os serviços:
    ```bash
-   docker-compose up --build
+   docker-compose up -d --build
    ```
 
 Com o projeto configurado, para atualizar:

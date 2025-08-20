@@ -53,6 +53,9 @@ class RinhaBackendCrebitosSimulation extends Simulation {
   val httpProtocol = http
     .baseUrl("http://localhost:9999")
     .userAgentHeader("Agente do Caos - 2024/Q1")
+    .connectionHeader("keep-alive")
+    .shareConnections
+    .maxConnectionsPerHost(10)
 
   val debitos = scenario("débitos")
     .exec {s =>
