@@ -1,14 +1,19 @@
 package simulations
 
 import scala.concurrent.duration._
+
 import scala.util.Random
+
 import util.Try
+
 import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 
-class RinhaBackendCrebitosSimulation extends Simulation {
+
+class RinhaBackendCrebitosSimulation
+  extends Simulation {
 
   def randomClienteId() = Random.between(1, 5 + 1)
   def randomValorTransacao() = Random.between(1, 10000 + 1)
@@ -53,9 +58,6 @@ class RinhaBackendCrebitosSimulation extends Simulation {
   val httpProtocol = http
     .baseUrl("http://localhost:9999")
     .userAgentHeader("Agente do Caos - 2024/Q1")
-    .connectionHeader("keep-alive")
-    .shareConnections
-    .maxConnectionsPerHost(10)
 
   val debitos = scenario("débitos")
     .exec {s =>

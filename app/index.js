@@ -5,6 +5,12 @@ const dotenv = require("dotenv");
 // Configura as variáveis de ambiente
 dotenv.config();
 
+// Registra o plugin CORS
+fastify.register(require('@fastify/cors'), {
+    origin: true,
+    credentials: true
+});
+
 const pool = new Pool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,

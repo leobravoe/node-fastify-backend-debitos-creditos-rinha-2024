@@ -5,7 +5,7 @@
 
 2. O comando copy .\app\.env.example .\app\.env no Windows copia o arquivo .env.example localizado na pasta app para um novo arquivo chamado .env na mesma pasta, geralmente usado para criar rapidamente um arquivo de configuração com variáveis de ambiente a partir de um modelo de exemplo:
    ```bash
-   copy .\app\.env.example .\app\.env
+   netsh int ipv4 set dynamicport tcp start=10000 num=55535
    ```
 
 3. O comando docker-compose down -v para e remove todos os containers e redes definidos no docker-compose.yml, além de remover também os volumes associados (incluindo os dados persistentes neles), ao contrário de docker-compose down sem -v, que mantém os volumes intactos:
@@ -18,6 +18,8 @@
    ```bash
    docker-compose up -d --build
    ```
+
+5. Entrar na pasta do gatling
 
 Com o projeto configurado, para atualizar:
 
