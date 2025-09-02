@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     account_id INT
 );
 
+CREATE INDEX IF NOT EXISTS idx_tx_account_created ON transactions (account_id, created_at DESC);
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT * FROM accounts WHERE id BETWEEN 1 AND 5) THEN
