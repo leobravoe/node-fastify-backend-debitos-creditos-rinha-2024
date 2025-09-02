@@ -21,7 +21,7 @@
 Cria uma **cópia completa** do repositório (histórico, branches, tags) em uma pasta com o mesmo nome do repo.
 
 ```bash
-git clone https://github.com/leobravoe/node-fastfly-backend-2025.git
+git clone https://github.com/leobravoe/node-fastfy-backend-2025.git
 ```
 
 **Dicas**
