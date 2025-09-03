@@ -11,6 +11,7 @@
     "description": "",
     "dependencies": {
         "@fastify/cors": "^11.0.1",
+        "dotenv": "^16.6.1",
         "fastify": "^5.4.0",
         "pg": "^8.16.3"
     }

@@ -1,5 +1,9 @@
 const fastify = require('fastify')();
 const { Pool } = require('pg');
+const dotenv = require("dotenv");
+
+// Configura as variáveis de ambiente
+dotenv.config();
 
 // Registra o plugin CORS
 fastify.register(require('@fastify/cors'), {

@@ -21,7 +21,16 @@
 Cria uma **cópia completa** do repositório (histórico, branches, tags) em uma pasta com o mesmo nome do repo.
 
 ```bash
-git clone https://github.com/leobravoe/node-fastfy-backend-2025.git
+git clone https://github.com/leobravoe/node-fastfly-backend-2025.git
+```
+
+**Dicas**
+```bash
+# Clonar apenas a branch principal
+git clone --branch main --single-branch https://github.com/leobravoe/node-fastfly-backend-2025.git
+
+# Clonar raso (mais rápido)
+git clone --depth=1 https://github.com/leobravoe/node-fastfly-backend-2025.git
 ```
 
 ---
@@ -43,6 +52,10 @@ netsh int ipv4 show dynamicport tcp
 Para e remove **containers, redes e volumes** da composição (atenção: apaga dados dos volumes).
 
 ```bash
+# Docker Compose v1 (legado)
+docker-compose down -v
+
+# Docker Compose v2 (recomendado)
 docker compose down -v
 ```
 > 💡 Use `--remove-orphans` para remover serviços “sobrando” de composições antigas.
@@ -53,10 +66,10 @@ docker compose down -v
 Sobe os serviços em **modo detached** e recompila imagens quando necessário.
 
 ```bash
-# v1 
-docker compose up -d --build
+# v1 (legado)
+docker-compose up -d --build
 
-# v2 aplica limites definidos em deploy.resources com compatibilidade
+# v2 (recomendado) — aplica limites definidos em deploy.resources com compatibilidade
 docker compose --compatibility up -d --build
 ```
 > 💡 `--compatibility` faz o Compose traduzir os limites do bloco `deploy:` para flags de runtime.
