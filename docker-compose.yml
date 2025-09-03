@@ -27,11 +27,12 @@ services:
             - pgdata:/var/lib/postgresql/data
             - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-        # deploy:
-        #     resources:
-        #         limits:
-        #             cpus: "0.2"
-        #             memory: "200MB"
+
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.56"
+                    memory: "350MB"
 
         # Mapeamento de porta (host:container)
         # Permite acessar o banco via localhost:5433
@@ -73,11 +74,11 @@ services:
             postgres:
                 condition: service_healthy
         
-        # deploy:
-        #     resources:
-        #         limits:
-        #             cpus: "0.5"
-        #             memory: "125MB"
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.37"
+                    memory: "85MB"
 
         restart: unless-stopped
 
@@ -105,11 +106,11 @@ services:
             postgres:
                 condition: service_healthy
 
-        # deploy:
-        #     resources:
-        #         limits:
-        #             cpus: "0.5"
-        #             memory: "125MB"
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.37"
+                    memory: "85MB"
 
         restart: unless-stopped
 
@@ -135,11 +136,11 @@ services:
             - app1
             - app2
 
-        # deploy:
-        #     resources:
-        #         limits:
-        #             cpus: "0.3"
-        #             memory: "100MB"
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.2"
+                    memory: "30MB"
 
         restart: unless-stopped
 
