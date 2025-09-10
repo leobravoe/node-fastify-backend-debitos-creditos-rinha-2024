@@ -31,7 +31,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: "0.50"
+                    cpus: "0.8"
                     memory: "250MB"
 
         # Mapeamento de porta (host:container)
@@ -77,8 +77,8 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: "0.5"
-                    memory: "125MB"
+                    cpus: "0.3"
+                    memory: "100MB"
 
         restart: unless-stopped
 
@@ -109,8 +109,8 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: "0.5"
-                    memory: "125MB"
+                    cpus: "0.3"
+                    memory: "100MB"
 
         restart: unless-stopped
 
@@ -129,7 +129,7 @@ services:
 
         # Monta o arquivo de configuração customizado
         volumes:
-            - ./nginx/nginx3.conf:/etc/nginx/nginx.conf
+            - ./nginx/nginx1.conf:/etc/nginx/nginx.conf
 
         # Garante que NGINX só suba após os apps
         depends_on:
@@ -139,8 +139,8 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: "0.3"
-                    memory: "50MB"
+                    cpus: "0.4"
+                    memory: "100MB"
 
         restart: unless-stopped
 
