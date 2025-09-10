@@ -174,8 +174,4 @@ try {
 } catch {
     WLog ""
     WLog ("ERRO DETALHADO: " + $_.ToString())
-} finally {
-    Close-Log
-    Write-Host "`nProcesso terminado. Pressione ENTER para fechar esta janela."
-    Read-Host | Out-Null
 }

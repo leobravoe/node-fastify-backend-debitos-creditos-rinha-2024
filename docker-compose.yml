@@ -32,7 +32,7 @@ services:
             resources:
                 limits:
                     cpus: "0.50"
-                    memory: "250MB"
+                    memory: "130MB"
 
         # Mapeamento de porta (host:container)
         # Permite acessar o banco via localhost:5433
@@ -78,7 +78,7 @@ services:
             resources:
                 limits:
                     cpus: "0.5"
-                    memory: "125MB"
+                    memory: "160MB"
 
         restart: unless-stopped
 
@@ -110,7 +110,7 @@ services:
             resources:
                 limits:
                     cpus: "0.5"
-                    memory: "125MB"
+                    memory: "160MB"
 
         restart: unless-stopped
 
@@ -140,7 +140,7 @@ services:
             resources:
                 limits:
                     cpus: "0.3"
-                    memory: "50MB"
+                    memory: "100MB"
 
         restart: unless-stopped
 
