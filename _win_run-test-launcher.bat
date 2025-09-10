@@ -1,4 +1,4 @@
-:: _run-test-launcher.bat
+:: _win_run-test-launcher.bat
 :: Versão final com gestão de PID e caminhos de log absolutos.
 @echo off
 chcp 65001 > nul
@@ -27,7 +27,7 @@ if exist stop-logging.flg del stop-logging.flg
 
 :: --- Inicia a Lógica Principal ---
 echo Iniciando a janela de teste (via PowerShell)...
-start "%WINDOW_TITLE%" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_run-test-main-logic.ps1" -FinalLogFile "%MAIN_LOG_FILE%"
+start "%WINDOW_TITLE%" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_win_run-test-main-logic.ps1" -FinalLogFile "%MAIN_LOG_FILE%"
 
 echo Aguardando a janela de teste ser criada para capturar o seu PID...
 set PID=
@@ -48,7 +48,7 @@ set PID=
 
 :: --- Inicia o Logger, passando o PID ---
 echo Iniciando o logger do Docker Stats em segundo plano...
-start /B powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_run-test-stats-logger.ps1" -LogFile "%STATS_LOG_FILE%" -ProcessId %PID%
+start /B powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_win_run-test-stats-logger.ps1" -LogFile "%STATS_LOG_FILE%" -ProcessId %PID%
 
 :: --- Monitoriza Ativamente o Processo de Teste ---
 echo O teste esta a correr. Este terminal esta a monitorizar.

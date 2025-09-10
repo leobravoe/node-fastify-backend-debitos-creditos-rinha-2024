@@ -1,4 +1,4 @@
-# _run-test-stats-logger.ps1
+# _win_run-test-stats-logger.ps1
 # Monitoriza o processo principal através do seu PID, adicionando um timestamp GMT a cada entrada.
 
 param (

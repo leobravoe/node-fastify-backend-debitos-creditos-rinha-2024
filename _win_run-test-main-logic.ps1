@@ -1,4 +1,4 @@
-# _run-test-main-logic.ps1
+# _win_run-test-main-logic.ps1
 # Versão robusta contra mojibake: UTF-8 de ponta a ponta, sem janelas extras.
 
 param (
@@ -58,14 +58,6 @@ function Fix-Encoding {
     # Converte caracteres acentuados para suas versões ASCII
     $result = $Text
     
-    # Substitui caracteres específicos que aparecem no Gatling por versões ASCII
-    $result = $result -replace 'validaes', 'validacoes'
-    $result = $result -replace 'validao', 'validacao'
-    $result = $result -replace 'concorrncia', 'concorrencia'
-    $result = $result -replace 'transaes', 'transacoes'
-    $result = $result -replace 'dbitos', 'debitos'
-    $result = $result -replace 'crditos', 'creditos'
-    
     # Trata caracteres que aparecem como no arquivo de log (usando regex mais específico)
     $result = $result -replace 'valida[^a-zA-Z]*es', 'validacoes'
     $result = $result -replace 'valida[^a-zA-Z]*o', 'validacao'
@@ -117,14 +109,13 @@ try {
 
     WLog "`n[PASSO 3/5] Verificacao de Saude dos Containers..."
     $timeoutSeconds = 90
-    $services = "postgres", "app1", "app2"
+    $services = "postgres", "app1", "app2", "nginx"   # <-- inclui nginx
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
     $healthyServices = 0
     while ($stopwatch.Elapsed.TotalSeconds -lt $timeoutSeconds) {
-        # Capturamos 'ps' também por cmd para manter o caminho UTF-8 consistente
+        # Captura 'ps' por cmd para manter UTF-8 consistente
         $tmpFile = [System.IO.Path]::GetTempFileName()
-        # Redireciona para arquivo temporário para evitar buffering da pipeline
         Run-CmdUTF8 -Title "docker-compose ps" -CommandLine "docker-compose ps > `"$tmpFile`"" -IgnoreExitCode
         $statuses = Get-Content -LiteralPath $tmpFile -Encoding UTF8
         Remove-Item $tmpFile -ErrorAction SilentlyContinue
@@ -132,6 +123,7 @@ try {
         $healthyServices = 0
         foreach ($service in $services) {
             $serviceLines = $statuses | Where-Object { $_ -match "\b$([Regex]::Escape($service))\b" }
+            # 'healthy' (quando houver HEALTHCHECK) OU pelo menos 'Up'
             if ($serviceLines -and ($serviceLines -match 'healthy' -or $serviceLines -match '\bUp\b')) {
                 $healthyServices++
             }
