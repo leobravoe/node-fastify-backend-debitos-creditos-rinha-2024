@@ -44,11 +44,11 @@ run_cmd() {
 # =============== Steps ===============
 
 wlog "[PASSO 1/5] Parando e removendo containers antigos (ignorar falhas)..."
-run_cmd "compose down -v" "ignore" compose down -v || true
+run_cmd "docker compose down -v" "ignore" docker compose down -v || true
 
 wlog ""
 wlog "[PASSO 2/5] Construindo e subindo novos containers (ignorar falhas)..."
-run_cmd "compose up -d --build --compatibility" "ignore" compose --compatibility up -d --build || true
+run_cmd "docker compose up -d --build --compatibility" "ignore" docker compose --compatibility up -d --build || true
 
 wlog ""
 wlog "[PASSO 3/5] Verificacao de Saude dos Containers..."
@@ -173,7 +173,9 @@ fi
 wlog ""
 wlog "[PASSO 5/5] Executando o teste de carga com Gatling..."
 pushd "${SCRIPT_DIR}/gatling" >/dev/null
-stdbuf -oL -eL ./mvnw gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation   2>&1 | tee -a "${LOGFILE}"
+stdbuf -oL -eL mvn -B -Dfile.encoding=UTF-8 \
+  gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation \
+  2>&1 | tee -a "${LOGFILE}"
 G_EXIT=${PIPESTATUS[0]}
 popd >/dev/null
 if [[ ${G_EXIT} -ne 0 ]]; then
