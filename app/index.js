@@ -1,200 +1,190 @@
-const fastify = require('fastify')();
+'use strict';
+
+const fastify = require('fastify')({ logger: false, bodyLimit: 8 * 1024 });
 const { Pool } = require('pg');
-const dotenv = require("dotenv");
 
-// Configura as variáveis de ambiente
-dotenv.config();
+/* ===== NUNCA LOGAR NO CONSOLE ===== */
+['log','error','warn','info','debug','trace'].forEach(k => { try { console[k] = () => {}; } catch {} });
 
-// Registra o plugin CORS
-fastify.register(require('@fastify/cors'), {
-    origin: true,
-    credentials: true
-});
-
+/* ===== POOL POSTGRES ===== */
+const PG_MAX = Number(process.env.PG_MAX ?? 20);
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 5432),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  max: PG_MAX,
+  connectionTimeoutMillis: Number(process.env.POOL_CONNECT_TIMEOUT_MS ?? 2000),
+  idleTimeoutMillis: 5_000,
+  maxUses: Number(process.env.PG_MAX_USES ?? 10_000),
 });
 
-//Só para testar os endpoints
-fastify.get('/accounts', async (request, reply) => {
-    try {
-        const result = await pool.query('SELECT * from accounts');
-        return {
-            "result.rows": result.rows,
-            "port": process.env.PORT,
-            "container": process.env.HOSTNAME,
-            "DB_PORT": process.env.DB_PORT
-        };
-    } catch (error) {
-        console.error('Error:', error);
-    }
+/* ===== TIMEOUTS DO SERVIDOR NODE (Node > Nginx; sem requestTimeout) ===== */
+fastify.after(() => {
+  fastify.server.requestTimeout = 0; // não encerrar por timeout no Node
+  fastify.server.keepAliveTimeout = Number(process.env.NODE_KEEPALIVE_TIMEOUT_MS ?? 15_000);
+  fastify.server.headersTimeout    = Number(process.env.NODE_HEADERS_TIMEOUT_MS    ?? 20_000);
 });
 
-//Só para testar os endpoints
-fastify.get('/transactions', async (request, reply) => {
-    try {
-        const result = await pool.query('SELECT * from transactions');
-        return {
-            "result.rows": result.rows,
-            "port": process.env.PORT,
-            "container": process.env.HOSTNAME,
-            "DB_PORT": process.env.DB_PORT
-        };
-    } catch (error) {
-        console.error('Error:', error);
-    }
+/* ===== HEALTH ===== */
+fastify.get('/health', async () => ({ ok: true }));
+
+/* ===== ÍNDICES IDEMPOTENTES ===== */
+async function ensureIndexes() {
+  const stmts = [
+    `CREATE INDEX IF NOT EXISTS idx_transactions_account_created_at
+       ON transactions (account_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_transactions_account_id
+       ON transactions (account_id)`
+  ];
+  for (const sql of stmts) { try { await pool.query(sql); } catch {} }
+}
+
+/* ===== HELPERS ===== */
+const isPosInt = n => Number.isInteger(n) && n > 0;
+const sanitizeDesc = s => (typeof s === 'string' && s.length>=1 && s.length<=10 && !/[\r\n]/.test(s)) ? s : null;
+
+/* ===== AQUISIÇÃO DE CONEXÃO COM TIMEOUT → 503 SE SATURAR ===== */
+async function withClientOr503(reply, fn) {
+  const acquireTimeout = Number(process.env.POOL_ACQUIRE_TIMEOUT_MS ?? 1500);
+  let timer, client, timeoutErr;
+  try {
+    const pending = pool.connect();
+    const timeout = new Promise((_, rej) => {
+      timer = setTimeout(() => { timeoutErr = new Error('acquire_timeout'); rej(timeoutErr); }, acquireTimeout);
+    });
+    client = await Promise.race([pending, timeout]);
+    return await fn(client);
+  } catch (e) {
+    if (e && e.message === 'acquire_timeout') return reply.code(503).send({ error: 'sobrecarga' });
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    if (client) client.release();
+  }
+}
+
+/* ===== BACKPRESSURE (ligado ao tamanho do pool) ===== */
+const MAX_INFLIGHT_TX   = Number(process.env.MAX_INFLIGHT_TX   ?? Math.max(10, PG_MAX * 2));
+const MAX_INFLIGHT_READ = Number(process.env.MAX_INFLIGHT_READ ?? Math.max(10, PG_MAX * 2));
+let inflightTx = 0;
+let inflightRead = 0;
+
+/* ===== ROTAS ===== */
+
+// Extrato
+fastify.get('/clientes/:id/extrato', async (req, reply) => {
+  if (inflightRead >= MAX_INFLIGHT_READ) return reply.code(503).send({ error: 'sobrecarga' });
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return reply.code(400).send({ error: 'id inválido' });
+
+  inflightRead++;
+  try {
+    return await withClientOr503(reply, async (client) => {
+      const acc = await client.query({
+        name: 'sel_acc',
+        text: 'SELECT balance, account_limit FROM accounts WHERE id=$1',
+        values: [id]
+      });
+      if (acc.rowCount === 0) return reply.code(404).send({ error: 'cliente não encontrado' });
+
+      const txs = await client.query({
+        name: 'sel_last10',
+        text: `SELECT amount, type, description, created_at
+                 FROM transactions
+                WHERE account_id=$1
+                ORDER BY created_at DESC, id DESC
+                LIMIT 10`,
+        values: [id]
+      });
+
+      return reply.code(200).send({
+        saldo: {
+          total: acc.rows[0].balance,
+          data_extrato: new Date().toISOString(),
+          limite: acc.rows[0].account_limit
+        },
+        ultimas_transacoes: txs.rows.map(r => ({
+          valor: r.amount,
+          tipo: r.type,
+          descricao: r.description,
+          realizada_em: r.created_at.toISOString()
+        }))
+      });
+    });
+  } catch {
+    return reply.code(500).send({ error: 'erro interno' });
+  } finally {
+    inflightRead--;
+  }
 });
 
-fastify.get('/clientes/:id/extrato', async (request, reply) => {
-    // Conversão rápida pra inteiro
-    const clientId = request.params.id | 0;
+// Transações (crédito/débito) — resposta no TOPO: { limite, saldo }
+fastify.post('/clientes/:id/transacoes', async (req, reply) => {
+  if (inflightTx >= MAX_INFLIGHT_TX) return reply.code(503).send({ error: 'sobrecarga' });
 
-    // Verifica se é inteiro válido
-    if (!Number.isInteger(clientId)) {
-        return reply.status(422).send({ erro: 'ID inválido' });
-    }
+  const id = Number(req.params.id);
+  const { valor, tipo, descricao } = req.body ?? {};
+  if (!Number.isInteger(id) || id <= 0) return reply.code(400).send({ error: 'id inválido' });
+  if (!isPosInt(valor)) return reply.code(400).send({ error: 'valor inválido' });
+  if (tipo !== 'c' && tipo !== 'd') return reply.code(400).send({ error: 'tipo inválido' });
+  const desc = sanitizeDesc(descricao);
+  if (!desc) return reply.code(400).send({ error: 'descricao inválida' });
 
-    const client = await pool.connect();
+  inflightTx++;
+  try {
+    return await withClientOr503(reply, async (client) => {
+      await client.query('BEGIN');
+      if ((process.env.PG_SYNC_COMMIT || '').toLowerCase() === 'off') {
+        await client.query('SET LOCAL synchronous_commit = off');
+      }
 
-    try {
-        // Começa transação se quiser garantir leitura consistente
-        await client.query('BEGIN');
+      const delta = (tipo === 'c') ? valor : -valor;
+      const upd = await client.query({
+        name: 'upd_balance',
+        text: `UPDATE accounts
+                  SET balance = balance + $1
+                WHERE id = $2
+                  AND (balance + $1) >= -account_limit
+                RETURNING balance, account_limit`,
+        values: [delta, id]
+      });
 
-        // Busca o cliente com saldo e limite
-        const { rows: accountRows } = await client.query(
-            'SELECT account_limit, balance FROM accounts WHERE id = $1',
-            [clientId]
-        );
-
-        if (accountRows.length === 0) {
-            await client.query('ROLLBACK');
-            return reply.status(404).send({ erro: 'Cliente não encontrado' });
-        }
-
-        const { account_limit, balance } = accountRows[0];
-
-        // Busca as 10 últimas transações com nomes de campos conforme esperado pelo teste
-        const { rows: transactions } = await client.query(
-            `SELECT 
-                amount AS valor,
-                type   AS tipo,
-                description AS descricao,
-                created_at  AS realizada_em
-             FROM transactions
-             WHERE account_id = $1
-             ORDER BY created_at DESC
-             LIMIT 10`,
-            [clientId]
-        );
-
-        await client.query('COMMIT');
-
-        // Monta a resposta
-        const extrato = {
-            saldo: {
-                total: balance,
-                data_extrato: new Date().toISOString(),
-                limite: account_limit
-            },
-            ultimas_transacoes: transactions
-        };
-
-        return reply.status(200).send(extrato);
-
-    } catch (err) {
+      if (upd.rowCount === 0) {
         await client.query('ROLLBACK');
-        console.error('Erro no extrato:', err);
-        return reply.status(500).send({ erro: 'Erro interno' });
-    } finally {
-        client.release();
-    }
+        return reply.code(422).send({ error: 'limite excedido' });
+      }
+
+      await client.query({
+        name: 'ins_tx',
+        text: `INSERT INTO transactions (amount, type, description, created_at, account_id)
+               VALUES ($1, $2, $3, NOW(), $4)`,
+        values: [valor, tipo, desc, id]
+      });
+
+      await client.query('COMMIT');
+
+      return reply.code(200).send({
+        limite: upd.rows[0].account_limit,
+        saldo:  upd.rows[0].balance
+      });
+    });
+  } catch {
+    try { await pool.query('ROLLBACK'); } catch {}
+    return reply.code(500).send({ error: 'erro interno' });
+  } finally {
+    inflightTx--;
+  }
 });
 
-//Post
-fastify.post('/clientes/:id/transacoes', async (request, reply) => {
-    const clientId = Number(request.params.id);
-
-    const { valor, tipo, descricao } = request.body;
-
-    // Validação dos campos
-    if (
-        !Number.isInteger(clientId) ||
-        !Number.isInteger(valor) || valor <= 0 ||
-        (tipo !== 'c' && tipo !== 'd') ||
-        typeof descricao !== 'string' ||
-        descricao.length < 1 || descricao.length > 10
-    ) {
-        return reply.status(422).send({ erro: 'Payload inválido' });
-    }
-
-    const client = await pool.connect();
-
-    try {
-        await client.query('BEGIN');
-
-        const { rows } = await client.query(
-            'SELECT account_limit, balance FROM accounts WHERE id = $1 FOR UPDATE',
-            [clientId]
-        );
-
-        if (rows.length === 0) {
-            await client.query('ROLLBACK');
-            return reply.status(404).send({ erro: 'Cliente não encontrado' });
-        }
-
-        const { account_limit, balance } = rows[0];
-        let new_balance = balance;
-
-        if (tipo === 'c') {
-            new_balance += valor;
-        } else {
-            new_balance -= valor;
-            if (new_balance < -account_limit) {
-                await client.query('ROLLBACK');
-                return reply.status(422).send({ erro: 'Limite excedido' });
-            }
-        }
-
-        await client.query(
-            'UPDATE accounts SET balance = $1 WHERE id = $2',
-            [new_balance, clientId]
-        );
-
-        await client.query(
-            `INSERT INTO transactions (amount, type, description, created_at, account_id)
-             VALUES ($1, $2, $3, NOW(), $4)`,
-            [valor, tipo, descricao, clientId]
-        );
-
-        await client.query('COMMIT');
-
-        return reply.status(200).send({
-            limite: account_limit,
-            saldo: new_balance
-        });
-
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('Erro na transação:', err);
-        return reply.status(500).send({ erro: 'Erro interno' });
-    } finally {
-        client.release();
-    }
-});
-
-
-const start = async () => {
-    try {
-        await fastify.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' });
-        console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
-    } catch (err) {
-        fastify.log.error(err);
-        process.exit(1);
-    }
-};
-
-start();
+/* ===== START ===== */
+(async function start() {
+  try {
+    await ensureIndexes();
+    await fastify.listen({ port: Number(process.env.PORT || 3000), host: '0.0.0.0' });
+  } catch {
+    process.exit(1);
+  }
+})();

@@ -7,8 +7,8 @@ setlocal
 :: --- Configuração ---
 for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /format:list') do set DATETIME=%%I
 set TIMESTAMP=%DATETIME:~0,8%-%DATETIME:~8,6%
-set MAIN_LOG_FILE=%~dp0__test_logs-%TIMESTAMP%.txt
-set STATS_LOG_FILE=%~dp0__stats_logs-%TIMESTAMP%.txt
+set MAIN_LOG_FILE=%~dp0__%TIMESTAMP%-gatling_logs.txt
+set STATS_LOG_FILE=%~dp0__%TIMESTAMP%-docker-stats_logs.txt
 set WINDOW_TITLE=Teste_Rinha_Backend-%TIMESTAMP%
 
 echo.
