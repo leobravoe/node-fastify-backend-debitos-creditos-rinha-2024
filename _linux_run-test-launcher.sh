@@ -10,8 +10,8 @@ export MAVEN_OPTS="-Dfile.encoding=UTF-8 ${MAVEN_OPTS:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-MAIN_LOG_FILE="${SCRIPT_DIR}/__test_logs-${TIMESTAMP}.txt"
-STATS_LOG_FILE="${SCRIPT_DIR}/__stats_logs-${TIMESTAMP}.txt"
+MAIN_LOG_FILE="${SCRIPT_DIR}/__${TIMESTAMP}-test_logs.txt"
+STATS_LOG_FILE="${SCRIPT_DIR}/__${TIMESTAMP}-stats_logs.txt"
 STOP_FLAG="${SCRIPT_DIR}/stop-logging.flg"
 
 echo "===================================================================="
