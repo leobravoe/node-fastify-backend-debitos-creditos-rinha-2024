@@ -15,6 +15,10 @@ $OutputEncoding           = New-Object System.Text.UTF8Encoding($false)  # influ
 #    (executamos um 'chcp 65001' válido para a sessão atual)
 cmd.exe /d /c "chcp 65001 >nul" | Out-Null
 
+# 3) Força UTF-8 no ambiente PowerShell
+$env:PYTHONIOENCODING = "utf-8"
+$env:LC_ALL = "en_US.UTF-8"
+
 # 3) Maven/Java sempre em UTF-8
 $env:JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
 $env:MAVEN_OPTS        = "-Dfile.encoding=UTF-8"
@@ -25,6 +29,10 @@ $Utf8WithBom = New-Object System.Text.UTF8Encoding($true)
 $fs = [System.IO.File]::Open($FinalLogFile, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
 $sw = New-Object System.IO.StreamWriter($fs, $Utf8WithBom)
 
+# Configuração adicional para garantir UTF-8 em todas as operações
+$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8BOM'
+$PSDefaultParameterValues['Add-Content:Encoding'] = 'utf8BOM'
+
 function Close-Log {
     try { $sw.Flush() } catch {}
     try { $sw.Close() } catch {}
@@ -34,8 +42,39 @@ function Close-Log {
 function WLog([string]$msg) {
     $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.fff")
     $line = "$ts $msg"
-    try { $sw.WriteLine($line); $sw.Flush() } catch {}
+    try { 
+        # Escreve diretamente no arquivo usando UTF-8
+        $sw.WriteLine($line)
+        $sw.Flush() 
+    } catch {}
+    # Para o console, usa a string original
     Write-Host $line
+}
+
+# Função para converter caracteres acentuados para ASCII
+function Fix-Encoding {
+    param([string]$Text)
+    
+    # Converte caracteres acentuados para suas versões ASCII
+    $result = $Text
+    
+    # Substitui caracteres específicos que aparecem no Gatling por versões ASCII
+    $result = $result -replace 'validaes', 'validacoes'
+    $result = $result -replace 'validao', 'validacao'
+    $result = $result -replace 'concorrncia', 'concorrencia'
+    $result = $result -replace 'transaes', 'transacoes'
+    $result = $result -replace 'dbitos', 'debitos'
+    $result = $result -replace 'crditos', 'creditos'
+    
+    # Trata caracteres que aparecem como no arquivo de log (usando regex mais específico)
+    $result = $result -replace 'valida[^a-zA-Z]*es', 'validacoes'
+    $result = $result -replace 'valida[^a-zA-Z]*o', 'validacao'
+    $result = $result -replace 'concorr[^a-zA-Z]*ncia', 'concorrencia'
+    $result = $result -replace 'transa[^a-zA-Z]*es', 'transacoes'
+    $result = $result -replace 'd[^a-zA-Z]*bitos', 'debitos'
+    $result = $result -replace 'cr[^a-zA-Z]*ditos', 'creditos'
+    
+    return $result
 }
 
 # Executa comando externo sob 'cmd /c chcp 65001 & <comando>', capturando stdout+stderr
@@ -50,8 +89,16 @@ function Run-CmdUTF8 {
     $cmd = 'chcp 65001 >nul & ' + $CommandLine
     & cmd.exe /d /c $cmd 2>&1 | ForEach-Object {
         # Cada linha que chega já foi decodificada com OutputEncoding=UTF8
-        $sw.WriteLine($_)
-        Write-Host $_
+        $line = $_.ToString()
+        
+        # Trata caracteres especiais que podem vir do Gatling/Maven
+        # Converte caracteres mal codificados para UTF-8 correto
+        $line = Fix-Encoding $line
+        
+        # Escreve no arquivo de log
+        $sw.WriteLine($line)
+        # Para o console
+        Write-Host $line
     }
     $exit = $LASTEXITCODE
     $sw.Flush()
@@ -68,7 +115,7 @@ try {
     WLog "`n[PASSO 2/5] Construindo e subindo novos containers (a ignorar falhas)..."
     Run-CmdUTF8 -Title "docker-compose up -d --build" -CommandLine 'docker-compose --compatibility up -d --build' -IgnoreExitCode
 
-    WLog "`n[PASSO 3/5] Verificação de Saúde dos Containers..."
+    WLog "`n[PASSO 3/5] Verificacao de Saude dos Containers..."
     $timeoutSeconds = 90
     $services = "postgres", "app1", "app2"
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -90,9 +137,9 @@ try {
             }
         }
 
-        WLog "Aguardando... ($healthyServices de $($services.Length) serviços prontos)"
+        WLog "Aguardando... ($healthyServices de $($services.Length) servicos prontos)"
         if ($healthyServices -eq $services.Length) {
-            WLog "Todos os serviços essenciais estão prontos! A continuar."
+            WLog "Todos os servicos essenciais estao prontos! A continuar."
             break
         }
         Start-Sleep -Seconds 5
@@ -115,14 +162,14 @@ try {
 
     WLog "`n[PASSO 5/5] Executando o teste de carga com Gatling..."
     Push-Location "gatling"
-    # Refazemos envs dentro da sessão cmd chamada:
+    # Refazemos envs dentro da sessão cmd chamada com configurações específicas para UTF-8:
     $gatlingExit = Run-CmdUTF8 -Title "mvnw gatling:test" -CommandLine `
-        'set "JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8" & set "MAVEN_OPTS=-Dfile.encoding=UTF-8" & mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation' `
+        'set "JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8" & set "MAVEN_OPTS=-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8" & set "MAVEN_OPTS=%MAVEN_OPTS% -Dmaven.compiler.encoding=UTF-8" & mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation' `
         -IgnoreExitCode
     Pop-Location
     if ($gatlingExit -ne 0) { throw "Falha ao executar o teste do Gatling. Exit=$gatlingExit" }
 
-    WLog "Teste concluído com sucesso."
+    WLog "Teste concluido com sucesso."
 
 } catch {
     WLog ""
