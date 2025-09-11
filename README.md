@@ -1,199 +1,178 @@
-# node-fastify-backend-2025
+# Guia de Comandos — `node-fastify-backend-2025`
 
-> Backend de alta performance com **Fastify + PostgreSQL + NGINX**, orquestrado por **Docker Compose** e com **Gatling** para testes de carga.
-
-[![Docker](https://img.shields.io/badge/docker-ready-blue)](#)
-[![Fastify](https://img.shields.io/badge/fastify-v5-black)](#)
-[![PostgreSQL](https://img.shields.io/badge/postgres-16-blue)](#)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+Este documento reúne comandos e procedimentos operacionais do repositório, com variações por sistema operacional quando aplicável.
 
 ---
 
 ## Sumário
-- [Arquitetura](#arquitetura)
-- [Stack & Pastas](#stack--pastas)
-- [Pré-requisitos](#pré-requisitos)
-- [Configuração (.env)](#configuração-env)
-- [Primeiros passos](#primeiros-passos)
-- [Comandos úteis](#comandos-úteis)
-- [Testes de carga (Gatling)](#testes-de-carga-gatling)
-- [Tuning & Troubleshooting](#tuning--troubleshooting)
-- [Roadmap](#roadmap)
-- [Contribuição](#contribuição)
-- [Licença](#licença)
+1. [Clonar o repositório](#1-clonar-o-repositório)
+2. [Ajustar portas efêmeras TCP (Windows)](#2-ajustar-portas-efêmeras-tcp-windows)
+3. [Derrubar containers, redes e volumes](#3-derrubar-containers-redes-e-volumes)
+4. [Subir a stack com Docker Compose](#4-subir-a-stack-com-docker-compose)
+5. [Monitorar uso de recursos](#5-monitorar-uso-de-recursos)
+6. [Entrar na pasta do Gatling](#6-entrar-na-pasta-do-gatling)
+7. [Resetar o banco e rodar a simulação (Gatling)](#7-resetar-o-banco-e-rodar-a-simulação-gatling)
+8. [Atualizar o projeto (sincronizar com o remoto)](#8-atualizar-o-projeto-sincronizar-com-o-remoto)
+9. [Informações do projeto](#9-informações-do-projeto)
 
 ---
 
-## Arquitetura
-
-```
-[ Client ] ⇄ [ NGINX (reverse proxy) ] ⇄ [ app1 | app2 ... ] ⇄ [ PostgreSQL ]
-                         │
-                         └──> Logs / Métricas / Healthchecks
-```
-
-- **NGINX** faz o balanceamento e mantém conexões keep-alive com os apps.
-- **Apps** (Fastify) expõem endpoints REST com validação e schemas.
-- **PostgreSQL** armazena os dados; migrations/seeds podem ser executados na subida.
-- **Gatling** executa cenários de carga para validar throughput/latência.
-
-> Dica: publique o OpenAPI (Swagger) para inspecionar e testar endpoints.
-
----
-
-## Stack & Pastas
-
-- **NGINX** (`/nginx`)
-- **Aplicação** (`/app`)
-- **Banco** (`/sql`)
-- **Carga** (`/gatling`)
-- **Infra/scripts**: `docker-compose.yml`, `_linux_*.sh`, `_win_*.ps1/.bat`
-
-Estrutura sugerida em `app/`:
-```
-app/
-  ├─ src/
-  │   ├─ server.ts|js           # bootstrap do Fastify
-  │   ├─ routes/                # definição das rotas
-  │   ├─ controllers/handlers/  # lógica de entrada
-  │   ├─ services/              # regras de negócio
-  │   ├─ db/                    # conexão/queries, migrations
-  │   └─ plugins/               # swagger, cors, helmet, env
-  └─ package.json
-```
-
----
-
-## Pré-requisitos
-
-- **Docker** e **Docker Compose v2**
-- **Java 17+** (para Gatling via Maven Wrapper)
-- **Node.js 20+** (apenas se for rodar a app fora de containers)
-
----
-
-## Configuração (.env)
-
-Crie um arquivo `.env` na raiz (ou em `app/`) usando este template:
-
-```ini
-# app
-PORT=3000
-NODE_ENV=development
-
-# database
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_DATABASE=postgres_api_db
-PG_MAX=30            # pool máximo de conexões
-```
-
-> Recomenda-se validar o ambiente em runtime (ex.: `@fastify/env`/`env-schema`) e falhar cedo se algo estiver ausente.
-
----
-
-## Primeiros passos
+## 1) Clonar o repositório
 
 ```bash
-# 1) Subir toda a stack (NGINX, apps, Postgres)
-docker compose --compatibility up -d --build
-
-# 2) Ver logs (gerais ou filtrados)
-docker compose logs -f
-docker compose logs -f app1
-docker compose logs -f postgres
+git clone https://github.com/leobravoe/node-fastify-backend-2025.git
 ```
 
-**Parar e limpar volumes** (cuidado: apaga dados persistidos):
+Outras formas de clonagem:
 ```bash
+# Clonar apenas a branch principal
+git clone --branch main --single-branch https://github.com/leobravoe/node-fastify-backend-2025.git
+
+# Clonagem rasa (histórico reduzido)
+git clone --depth=1 https://github.com/leobravoe/node-fastify-backend-2025.git
+```
+
+---
+
+## 2) Ajustar portas efêmeras TCP (Windows)
+
+Comando para definir a faixa de portas efêmeras IPv4 (executar em CMD com privilégios administrativos):
+
+```cmd
+netsh int ipv4 set dynamicport tcp start=10000 num=55535
+```
+Consulta da configuração atual:
+```cmd
+netsh int ipv4 show dynamicport tcp
+```
+
+---
+
+## 3) Derrubar containers, redes e volumes
+
+```bash
+# Docker Compose v1
+docker-compose down -v
+
+# Docker Compose v2
 docker compose down -v
 ```
 
 ---
 
-## Comandos úteis
+## 4) Subir a stack com Docker Compose
 
-**Estatísticas de consumo**:
 ```bash
-docker stats                # streaming contínuo
-docker stats --no-stream    # snapshot
-docker stats postgres app1  # filtrar por nome
+# v1
+docker-compose up -d --build
+
+# v2
+docker compose --compatibility up -d --build
 ```
 
-**Resetar banco + (opcional) rodar carga**:  
-Linux/macOS (bash):
+---
+
+## 5) Monitorar uso de recursos
+
 ```bash
-docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1   -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;"   && ./mvnw -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+docker stats
+docker stats --no-stream
+docker stats postgres app1
 ```
 
-Windows (PowerShell):
+---
+
+## 6) Entrar na pasta do Gatling
+
+```bash
+cd gatling
+# Windows PowerShell: cd .\gatling
+```
+
+---
+
+## 7) Resetar o banco e rodar a simulação (Gatling)
+
+**Windows (CMD):**
+```cmd
+docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
+  -c "TRUNCATE TABLE transactions" ^
+  -c "UPDATE accounts SET balance = 0" ^
+  && .\mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+```
+
+**Windows (PowerShell):**
 ```powershell
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 `
   -c "TRUNCATE TABLE transactions" `
   -c "UPDATE accounts SET balance = 0" `
-; if ($LASTEXITCODE -eq 0) {
-  ./mvnw.cmd -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
-}
+  ; if ($LASTEXITCODE -eq 0) { ./mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation }
 ```
 
----
-
-## Testes de carga (Gatling)
-
-- Cenários em `/gatling` (Scala).  
-- Executar via Maven Wrapper:
+**Linux/macOS (bash):**
 ```bash
-# Linux/macOS
-./mvnw -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
-# Windows
-.\mvnw.cmd -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 \
+  -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;" \
+  && ./mvnw gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
 ```
 
-Resultados: `gatling/target/gatling/**/index.html`
-
-> Para evitar **exhaustion** de portas efêmeras no Windows, ajuste a faixa:
->
-> ```cmd
-> netsh int ipv4 set dynamicport tcp start=10000 num=55535
-> ```
+Relatórios do Gatling:
+```
+gatling/target/gatling/**/index.html
+```
 
 ---
 
-## Tuning & Troubleshooting
+## 8) Atualizar o projeto (sincronizar com o remoto)
 
-- **NGINX → Apps**: mantenha `keep-alive` e HTTP/1.1 para reuso de conexões.
-- **Pool do Postgres** (`PG_MAX`): dimensione evitando over-subscription.
-- **Healthchecks** no Compose: asseguram ordem de inicialização estável.
-- **Erros 5xx / timeouts** sob carga:
-  - verifique `docker stats` (CPU/memória/IO)
-  - logs do NGINX e dos apps
-  - locks/conexões no Postgres
-- **Windows**: rode shell/terminais como Administrador ao alterar portas efêmeras.
+```bash
+git fetch --all
+git switch main
+git reset --hard origin/main
+git clean -fdx
+```
 
----
+Comandos de referência:
 
-## Roadmap
+```bash
+# Reposiciona branch e descarta alterações locais
+git reset --hard origin/main
 
-- [ ] Publicar OpenAPI (`@fastify/swagger` + UI)  
-- [ ] Validar env e schemas de payload (Zod/JSON-Schema)  
-- [ ] Healthchecks no `docker-compose.yml`  
-- [ ] Observabilidade básica (Pino JSON + request-id + métricas)  
-- [ ] CI (lint, build, testes, relatório de carga opcional)  
-- [ ] LICENÇA e guia de contribuição
-
----
-
-## Contribuição
-
-1. Crie uma **issue** descrevendo a mudança.
-2. Faça um **fork** e crie uma branch: `feat/nome-da-feature`.
-3. **Commits** no padrão Conventional Commits.
-4. Pull Request com descrição, screenshots (quando aplicável) e checklist.
+# Remove arquivos e pastas não rastreados
+git clean -fd      # remoção forçada
+git clean -fdn     # simulação (sem remover)
+git clean -fdx     # inclui ignorados (ex.: node_modules)
+```
 
 ---
 
-## Licença
+## 9) Informações do projeto
 
-MIT — veja `LICENSE`.
+**Serviços:** NGINX (proxy/reverso), aplicações Node.js (Fastify), PostgreSQL e cenários de carga com Gatling (Maven Wrapper).
+
+**Pastas principais:**
+```
+/nginx      # configuração do NGINX
+/app        # código da aplicação (Node.js/Fastify)
+/sql        # scripts SQL e arquivos de banco
+/gatling    # simulações de carga (Scala/Gatling via Maven Wrapper)
+```
+
+**Ferramentas utilizadas:**
+- Docker / Docker Compose
+- Node.js / Fastify
+- PostgreSQL
+- NGINX
+- Gatling (via Maven Wrapper)
+
+**Variáveis de ambiente usadas pela aplicação (exemplos comuns):**
+```
+DB_HOST
+DB_PORT
+DB_USER
+DB_PASSWORD
+DB_DATABASE
+PG_MAX
+```
+
+Este guia descreve os procedimentos em uso no repositório conforme a estrutura atual.
