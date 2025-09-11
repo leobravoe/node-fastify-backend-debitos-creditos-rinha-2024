@@ -1,168 +1,199 @@
-# Guia de Comandos — `node-fastfly-backend-2025`
+# node-fastify-backend-2025
 
-> Cole este conteúdo no seu **README.md**. Ele reúne os comandos essenciais com explicações curtas, variações por sistema operacional e alertas úteis.
+> Backend de alta performance com **Fastify + PostgreSQL + NGINX**, orquestrado por **Docker Compose** e com **Gatling** para testes de carga.
+
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](#)
+[![Fastify](https://img.shields.io/badge/fastify-v5-black)](#)
+[![PostgreSQL](https://img.shields.io/badge/postgres-16-blue)](#)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
 ## Sumário
-1. [Clonar o repositório](#1-clonar-o-repositório)
-2. [Ajustar portas efêmeras TCP (Windows)](#2-ajustar-portas-efêmeras-tcp-windows)
-3. [Derrubar containers, redes e volumes](#3-derrubar-containers-redes-e-volumes)
-4. [Subir a stack com Docker Compose](#4-subir-a-stack-com-docker-compose)
-5. [Monitorar uso de recursos](#5-monitorar-uso-de-recursos)
-6. [Entrar na pasta do Gatling](#6-entrar-na-pasta-do-gatling)
-7. [Resetar o banco e rodar a simulação (Gatling)](#7-resetar-o-banco-e-rodar-a-simulação-gatling)
-8. [Atualizar o projeto (sincronizar com o remoto)](#8-atualizar-o-projeto-sincronizar-com-o-remoto)
-9. [Notas importantes](#9-notas-importantes)
+- [Arquitetura](#arquitetura)
+- [Stack & Pastas](#stack--pastas)
+- [Pré-requisitos](#pré-requisitos)
+- [Configuração (.env)](#configuração-env)
+- [Primeiros passos](#primeiros-passos)
+- [Comandos úteis](#comandos-úteis)
+- [Testes de carga (Gatling)](#testes-de-carga-gatling)
+- [Tuning & Troubleshooting](#tuning--troubleshooting)
+- [Roadmap](#roadmap)
+- [Contribuição](#contribuição)
+- [Licença](#licença)
 
 ---
 
-## 1) Clonar o repositório
-Cria uma **cópia completa** do repositório (histórico, branches, tags) em uma pasta com o mesmo nome do repo.
+## Arquitetura
 
-```bash
-git clone https://github.com/leobravoe/node-fastfly-backend-2025.git
+```
+[ Client ] ⇄ [ NGINX (reverse proxy) ] ⇄ [ app1 | app2 ... ] ⇄ [ PostgreSQL ]
+                         │
+                         └──> Logs / Métricas / Healthchecks
 ```
 
-**Dicas**
-```bash
-# Clonar apenas a branch principal
-git clone --branch main --single-branch https://github.com/leobravoe/node-fastfly-backend-2025.git
+- **NGINX** faz o balanceamento e mantém conexões keep-alive com os apps.
+- **Apps** (Fastify) expõem endpoints REST com validação e schemas.
+- **PostgreSQL** armazena os dados; migrations/seeds podem ser executados na subida.
+- **Gatling** executa cenários de carga para validar throughput/latência.
 
-# Clonar raso (mais rápido)
-git clone --depth=1 https://github.com/leobravoe/node-fastfly-backend-2025.git
+> Dica: publique o OpenAPI (Swagger) para inspecionar e testar endpoints.
+
+---
+
+## Stack & Pastas
+
+- **NGINX** (`/nginx`)
+- **Aplicação** (`/app`)
+- **Banco** (`/sql`)
+- **Carga** (`/gatling`)
+- **Infra/scripts**: `docker-compose.yml`, `_linux_*.sh`, `_win_*.ps1/.bat`
+
+Estrutura sugerida em `app/`:
+```
+app/
+  ├─ src/
+  │   ├─ server.ts|js           # bootstrap do Fastify
+  │   ├─ routes/                # definição das rotas
+  │   ├─ controllers/handlers/  # lógica de entrada
+  │   ├─ services/              # regras de negócio
+  │   ├─ db/                    # conexão/queries, migrations
+  │   └─ plugins/               # swagger, cors, helmet, env
+  └─ package.json
 ```
 
 ---
 
-## 2) Ajustar portas efêmeras TCP (Windows)
-Redefine a **faixa de portas efêmeras** (usadas para conexões de saída). Útil em cargas com muitas conexões (Gatling/NGINX) para evitar “exhaustion”.> Execute **CMD como Administrador**.
+## Pré-requisitos
 
-```cmd
-netsh int ipv4 set dynamicport tcp start=10000 num=55535
-```
-Verifique a configuração atual:
-```cmd
-netsh int ipv4 show dynamicport tcp
-```
+- **Docker** e **Docker Compose v2**
+- **Java 17+** (para Gatling via Maven Wrapper)
+- **Node.js 20+** (apenas se for rodar a app fora de containers)
 
 ---
 
-## 3) Derrubar containers, redes e volumes
-Para e remove **containers, redes e volumes** da composição (atenção: apaga dados dos volumes).
+## Configuração (.env)
+
+Crie um arquivo `.env` na raiz (ou em `app/`) usando este template:
+
+```ini
+# app
+PORT=3000
+NODE_ENV=development
+
+# database
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_DATABASE=postgres_api_db
+PG_MAX=30            # pool máximo de conexões
+```
+
+> Recomenda-se validar o ambiente em runtime (ex.: `@fastify/env`/`env-schema`) e falhar cedo se algo estiver ausente.
+
+---
+
+## Primeiros passos
 
 ```bash
-# Docker Compose v1 (legado)
-docker-compose down -v
+# 1) Subir toda a stack (NGINX, apps, Postgres)
+docker compose --compatibility up -d --build
 
-# Docker Compose v2 (recomendado)
+# 2) Ver logs (gerais ou filtrados)
+docker compose logs -f
+docker compose logs -f app1
+docker compose logs -f postgres
+```
+
+**Parar e limpar volumes** (cuidado: apaga dados persistidos):
+```bash
 docker compose down -v
 ```
-> 💡 Use `--remove-orphans` para remover serviços “sobrando” de composições antigas.
 
 ---
 
-## 4) Subir a stack com Docker Compose
-Sobe os serviços em **modo detached** e recompila imagens quando necessário.
+## Comandos úteis
 
-```bash
-# v1 (legado)
-docker-compose up -d --build
-
-# v2 (recomendado) — aplica limites definidos em deploy.resources com compatibilidade
-docker compose --compatibility up -d --build
-```
-> 💡 `--compatibility` faz o Compose traduzir os limites do bloco `deploy:` para flags de runtime.
-
----
-
-## 5) Monitorar uso de recursos
-Acompanha CPU, memória, rede e I/O em tempo real por container.
-
+**Estatísticas de consumo**:
 ```bash
 docker stats                # streaming contínuo
-docker stats --no-stream    # apenas um snapshot
-docker stats postgres app1  # filtra por nome
+docker stats --no-stream    # snapshot
+docker stats postgres app1  # filtrar por nome
 ```
 
----
-
-## 6) Entrar na pasta do Gatling
+**Resetar banco + (opcional) rodar carga**:  
+Linux/macOS (bash):
 ```bash
-cd gatling
-# Windows PowerShell: cd .\gatling
+docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1   -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;"   && ./mvnw -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
 ```
 
----
-
-## 7) Resetar o banco e rodar a simulação (Gatling)
-**Windows (CMD):** reseta tabelas via `psql` no container `postgres` e, se der certo, executa a simulação.
-
-```cmd
-docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
-  -c "TRUNCATE TABLE transactions" ^
-  -c "UPDATE accounts SET balance = 0" ^
-  && .\mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
-```
-
-**PowerShell (use crase para quebra de linha):**
+Windows (PowerShell):
 ```powershell
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 `
   -c "TRUNCATE TABLE transactions" `
   -c "UPDATE accounts SET balance = 0" `
-  ; if ($LASTEXITCODE -eq 0) { ./mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation }
-```
-
-**Linux/macOS (bash):** agrupe em transação para atomicidade.
-```bash
-docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1   -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;" && ./mvnw gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+; if ($LASTEXITCODE -eq 0) {
+  ./mvnw.cmd -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+}
 ```
 
 ---
 
-## 8) Atualizar o projeto (sincronizar com o remoto)
-Sequência **determinística** (deixa seu repositório idêntico ao remoto, descartando mudanças locais):
+## Testes de carga (Gatling)
 
+- Cenários em `/gatling` (Scala).  
+- Executar via Maven Wrapper:
 ```bash
-git fetch --all
-git switch main            # ou: git checkout main
-git reset --hard origin/main
-git clean -fdx             # cuidado: remove também arquivos ignorados
+# Linux/macOS
+./mvnw -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+# Windows
+.\mvnw.cmd -q gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
 ```
 
-Comandos individuais (explicação rápida):
+Resultados: `gatling/target/gatling/**/index.html`
 
-**`git reset --hard`** — reposiciona o branch atual para um commit e **descarta TODAS** as mudanças locais no working tree e no index.
-```bash
-git reset --hard           # para o último commit local
-git reset --hard origin/main
-```
-
-**`git clean -fd`** — remove **arquivos e pastas não rastreados**.
-```bash
-git clean -fd              # força remoção
-git clean -fdn             # "dry run" (mostra o que seria removido)
-git clean -fdx             # inclui arquivos ignorados (ex.: node_modules, builds)
-```
-
-**`git pull`** — baixa e integra alterações do remoto ao branch atual.
-```bash
-git pull                   # estratégia padrão (merge)
-git pull --rebase          # mantém histórico linear (recomendado)
-git pull origin main       # especifica remoto e branch
-```
+> Para evitar **exhaustion** de portas efêmeras no Windows, ajuste a faixa:
+>
+> ```cmd
+> netsh int ipv4 set dynamicport tcp start=10000 num=55535
+> ```
 
 ---
 
-## 9) Notas importantes
-- **Compose v2**: prefira `docker compose` (sem hífen). `docker-compose` é o binário v1 (legado).
-- Para que **limites de CPU/memória** do bloco `deploy:` funcionem fora do Swarm, rode com `--compatibility`:
-  ```bash
-  docker compose --compatibility up -d --build
-  ```
-- **Cuidado ao usar `-v` no down**: remove volumes e **apaga dados persistidos** (ex.: `pgdata` do Postgres).
-- Se estiver em **Windows**, execute terminais como **Administrador** quando alterar portas efêmeras (`netsh`).
+## Tuning & Troubleshooting
+
+- **NGINX → Apps**: mantenha `keep-alive` e HTTP/1.1 para reuso de conexões.
+- **Pool do Postgres** (`PG_MAX`): dimensione evitando over-subscription.
+- **Healthchecks** no Compose: asseguram ordem de inicialização estável.
+- **Erros 5xx / timeouts** sob carga:
+  - verifique `docker stats` (CPU/memória/IO)
+  - logs do NGINX e dos apps
+  - locks/conexões no Postgres
+- **Windows**: rode shell/terminais como Administrador ao alterar portas efêmeras.
 
 ---
 
-> Em caso de erros de performance (502, timeouts, “Premature close”), verifique `docker stats`, logs do NGINX/app e o banco (locks/conexões). Ajustes típicos: aumentar memória dos apps, habilitar keep-alive no NGINX para upstreams e dimensionar o pool de conexões do Postgres.
+## Roadmap
+
+- [ ] Publicar OpenAPI (`@fastify/swagger` + UI)  
+- [ ] Validar env e schemas de payload (Zod/JSON-Schema)  
+- [ ] Healthchecks no `docker-compose.yml`  
+- [ ] Observabilidade básica (Pino JSON + request-id + métricas)  
+- [ ] CI (lint, build, testes, relatório de carga opcional)  
+- [ ] LICENÇA e guia de contribuição
+
+---
+
+## Contribuição
+
+1. Crie uma **issue** descrevendo a mudança.
+2. Faça um **fork** e crie uma branch: `feat/nome-da-feature`.
+3. **Commits** no padrão Conventional Commits.
+4. Pull Request com descrição, screenshots (quando aplicável) e checklist.
+
+---
+
+## Licença
+
+MIT — veja `LICENSE`.
