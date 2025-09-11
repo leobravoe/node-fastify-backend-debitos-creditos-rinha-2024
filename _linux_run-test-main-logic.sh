@@ -20,14 +20,6 @@ wlog() {
 ' "$(ts)" "$*" | tee -a "${LOGFILE}"
 }
 
-compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
-  else
-    docker-compose "$@"
-  fi
-}
-
 # Runs a command, streaming output to console and file (UTF-8) — ignores failures if asked
 run_cmd() {
   local title="$1"; shift
@@ -57,7 +49,7 @@ TIMEOUT=90
 DEADLINE=$(( $(date +%s) + TIMEOUT ))
 
 get_ids_for_service() {
-  compose ps -q "$1" 2>/dev/null | sed '/^$/d' || true
+  docker compose ps -q "$1" 2>/dev/null | sed '/^$/d' || true
 }
 
 is_container_running() {
@@ -137,7 +129,7 @@ done
 if ! all_services_ready; then
   wlog ""
   wlog "--- ESTADO ATUAL DOS CONTAINERS ---"
-  compose ps | tee -a "${LOGFILE}" >/dev/null || true
+  docker compose ps | tee -a "${LOGFILE}" >/dev/null || true
   wlog "Timeout: Nem todos os containers ficaram prontos em ${TIMEOUT} segundos."
   exit 1
 fi
@@ -145,7 +137,7 @@ fi
 # Postgres readiness + cleanup
 wlog ""
 wlog "[PASSO 4/5] Limpando o banco de dados..."
-PG_ID="$(compose ps -q postgres | head -n1 || true)"
+PG_ID="$(docker compose ps -q postgres | head -n1 || true)"
 if [[ -z "${PG_ID}" ]]; then
   wlog "Aviso: container do postgres nao encontrado; pulando limpeza."
 else
