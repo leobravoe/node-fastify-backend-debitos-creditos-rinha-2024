@@ -53,7 +53,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"                   # ~80% de 1 CPU lógico
+          cpus: "0.80"
           memory: "250MB"
 
     # Porta do host 5433 -> 5432 do container (evita conflito com Postgres local)
@@ -102,7 +102,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.3"
+          cpus: "0.25"
           memory: "100MB"
 
     restart: unless-stopped             # Reinicia salvo se explicitamente parado
@@ -135,7 +135,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.3"
+          cpus: "0.25"
           memory: "100MB"
 
     restart: unless-stopped
@@ -171,7 +171,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.4"
+          cpus: "0.2"
           memory: "100MB"
 
     restart: unless-stopped
