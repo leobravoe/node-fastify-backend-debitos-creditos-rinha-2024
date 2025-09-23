@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # _linux_run-test-main-logic.sh — Linux main logic with robust UTF-8 and health checks
 set -Eeuo pipefail
+# On interrupt/term, propagate to our child process group (docker/mvn) then exit
+on_signal() {
+  # Try to stop docker compose gracefully
+  if command -v docker >/dev/null 2>&1; then
+    docker compose stop >/dev/null 2>&1 || true
+  fi
+  exit 130
+}
+trap on_signal INT TERM
 
 LOGFILE="${1:-__test_logs-$(date +%Y%m%d-%H%M%S).txt}"
 

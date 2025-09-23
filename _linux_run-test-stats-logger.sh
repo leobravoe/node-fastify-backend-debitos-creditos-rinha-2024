@@ -15,6 +15,10 @@ touch "${LOGFILE}"
 
 echo "$(ts) Logger iniciado. Monitorando PID=${MAIN_PID}" >> "${LOGFILE}"
 
+# Ensure we terminate on Ctrl+C/TERM as well
+cleanup() { echo "$(ts) Logger interrompido por sinal. Encerrando." >> "${LOGFILE}"; exit 130; }
+trap cleanup INT TERM
+
 while true; do
   # stop conditions
   if [[ -n "${STOP_FLAG}" && -f "${STOP_FLAG}" ]]; then
