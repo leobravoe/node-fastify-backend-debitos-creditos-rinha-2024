@@ -93,27 +93,55 @@ cd gatling
 
 ## 7) Resetar o banco e rodar a simulação (Gatling)
 
+Para iniciar as simulações, a partir da raiz do projeto digite:
+
 **Windows (CMD):**
 ```cmd
+docker compose down -v && ^
+docker compose --compatibility up -d --build && ^
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
   -c "TRUNCATE TABLE transactions" ^
   -c "UPDATE accounts SET balance = 0" ^
-  && .\mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+&& cmd /c "cd /d gatling && mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation"
+```
+
+ou
+
+```cmd
+  _win_run-test-launcher.bat  
 ```
 
 **Windows (PowerShell):**
 ```powershell
+docker compose down -v; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+docker compose --compatibility up -d --build; if ($LASTEXITCODE) { exit $LASTEXITCODE }
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 `
   -c "TRUNCATE TABLE transactions" `
-  -c "UPDATE accounts SET balance = 0" `
-  ; if ($LASTEXITCODE -eq 0) { ./mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation }
+  -c "UPDATE accounts SET balance = 0"; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+cmd /c "cd /d gatling && mvnw.cmd gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation"
+
+```
+
+ou
+
+```powershell
+  .\_win_run-test-launcher.bat
 ```
 
 **Linux/macOS (bash):**
 ```bash
-docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 \
+docker compose down -v \
+&& docker compose up -d --build \
+&& docker compose exec -T postgres \
+  psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 \
   -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;" \
-  && ./mvnw gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation
+&& ( cd gatling && mvn gatling:test -Dgatling.simulationClass=simulations.RinhaBackendCrebitosSimulation )
+```
+
+ou
+
+```bash
+  ./_linux_run-test-launcher.sh 
 ```
 
 Relatórios do Gatling:
