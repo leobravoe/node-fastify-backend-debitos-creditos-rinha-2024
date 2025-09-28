@@ -38,7 +38,7 @@ const Pool = native.Pool;
 
 /* 2) Configuração do Pool de Conexões */
 // Lemos a quantidade máxima de conexões do ambiente (ou usamos 30 por padrão).
-const PG_MAX = Number(process.env.PG_MAX ?? 300);
+const PG_MAX = Number(process.env.PG_MAX ?? 30);
 
 const pool = new Pool({
     // DICA: se a aplicação e o banco rodam na MESMA MÁQUINA, Unix Sockets podem ser mais rápidos
