@@ -108,7 +108,7 @@ docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
 ou
 
 ```cmd
-  _win_run-test-launcher.bat  
+_win_run-test-launcher.bat  
 ```
 
 **Windows (PowerShell):**
@@ -125,7 +125,7 @@ cmd /c "cd /d gatling && mvnw.cmd gatling:test -Dgatling.simulationClass=simulat
 ou
 
 ```powershell
-  .\_win_run-test-launcher.bat
+.\_win_run-test-launcher.bat
 ```
 
 **Linux/macOS (bash):**
@@ -141,7 +141,7 @@ docker compose down -v \
 ou
 
 ```bash
-  ./_linux_run-test-launcher.sh 
+./_linux_run-test-launcher.sh 1
 ```
 
 Relatórios do Gatling:
