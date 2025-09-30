@@ -98,7 +98,7 @@ Para iniciar as simulações, a partir da raiz do projeto digite:
 **Windows (CMD):**
 ```cmd
 docker compose down -v && ^
-docker compose --compatibility up -d --build && ^
+docker compose --compatibility up -d --build --force-recreate && ^
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
   -c "TRUNCATE TABLE transactions" ^
   -c "UPDATE accounts SET balance = 0" ^
@@ -108,13 +108,13 @@ docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 ^
 ou
 
 ```cmd
-_win_run-test-launcher.bat  
+_win_run-test-launcher.bat 1
 ```
 
 **Windows (PowerShell):**
 ```powershell
 docker compose down -v; if ($LASTEXITCODE) { exit $LASTEXITCODE }
-docker compose --compatibility up -d --build; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+docker compose --compatibility up -d --build --force-recreate; if ($LASTEXITCODE) { exit $LASTEXITCODE }
 docker exec postgres psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 `
   -c "TRUNCATE TABLE transactions" `
   -c "UPDATE accounts SET balance = 0"; if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -125,13 +125,13 @@ cmd /c "cd /d gatling && mvnw.cmd gatling:test -Dgatling.simulationClass=simulat
 ou
 
 ```powershell
-.\_win_run-test-launcher.bat
+.\_win_run-test-launcher.bat 1
 ```
 
 **Linux/macOS (bash):**
 ```bash
 docker compose down -v \
-&& docker compose up -d --build \
+&& docker compose --compatibility up -d --build --force-recreate \
 && docker compose exec -T postgres \
   psql -U postgres -d postgres_api_db -v ON_ERROR_STOP=1 \
   -c "BEGIN; TRUNCATE TABLE transactions; UPDATE accounts SET balance = 0; COMMIT;" \

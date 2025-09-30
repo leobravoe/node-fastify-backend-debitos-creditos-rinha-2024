@@ -86,6 +86,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
+      PG_MAX: 30
       HOSTNAME: app1                    # Útil para logs/observabilidade
 
     # 'expose' publica a porta apenas na rede interna do Compose (NÃO no host)
@@ -123,6 +124,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
+      PG_MAX: 30
       HOSTNAME: app2
 
     expose:
