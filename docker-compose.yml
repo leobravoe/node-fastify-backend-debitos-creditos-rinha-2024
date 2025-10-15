@@ -26,7 +26,7 @@ services:
   # - Porta 5433 no host para não colidir com instalações locais (5432)
   # --------------------------------------------------------------------
   postgres:
-    image: postgres:15                  # Pin de versão evita surpresas (vs 'latest')
+    image: postgres:15-alpine                  # Pin de versão evita surpresas (vs 'latest')
     container_name: postgres
     restart: always                     # Reinicia automaticamente em falhas ou reboot
 
@@ -151,7 +151,7 @@ services:
   #     * faça proxy_pass para o upstream.
   # --------------------------------------------------------------------
   nginx:
-    image: nginx:latest                 # Em produção, prefira fixar versão (ex.: nginx:1.26-alpine)
+    image: nginx:alpine                 # Em produção, prefira fixar versão (ex.: nginx:1.26-alpine)
     container_name: nginx
 
     # Mapeamento de porta do host -> container

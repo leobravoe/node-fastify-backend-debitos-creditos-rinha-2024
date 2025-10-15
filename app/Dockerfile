@@ -18,7 +18,7 @@
 # ======================================================================
 
 # Use a imagem base do Node.js (a versão pode variar)
-FROM node:21-slim
+FROM node:22-alpine
 
 # ----------------------------------------------------------------------
 # Instala as dependências necessárias para compilar addons nativos
@@ -33,11 +33,10 @@ FROM node:21-slim
 # - Em ambientes que prezam por imagens menores ainda, considere
 #   '--no-install-recommends' no apt-get install.
 # ----------------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apk add --no-cache \
+    build-base \
     python3 \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    postgresql-dev
 
 # ----------------------------------------------------------------------
 # Define o diretório de trabalho dentro do container.
