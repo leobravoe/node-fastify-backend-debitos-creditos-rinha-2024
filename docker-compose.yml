@@ -1,101 +1,173 @@
 # ======================================================================
-# Docker Compose para uma stack simples:
-# - postgres (banco)
-# - app1 e app2 (duas instâncias da mesma aplicação Node.js)
-# - nginx (balanceador/reverso)
+#         Docker Compose: O Arquiteto do Ambiente
+# ======================================================================
 #
-# DICAS RÁPIDAS DE USO
-#   Subir:    docker compose up -d --build
-#   Subir (respeitando 'deploy.resources.*' sem Swarm): docker compose --compatibility up -d --build
-#   Descer:   docker compose down -v     # '-v' remove o volume 'pgdata' (DADOS DO BANCO SERÃO PERDIDOS)
+# O QUE É ESTE ARQUIVO?
+# Pense neste arquivo como o "arquiteto" do seu ambiente de desenvolvimento.
+# Ele diz ao Docker Compose como construir e conectar vários "containers"
+# (que são como mini-computadores) para que seu projeto funcione.
 #
-# NOTA SOBRE LIMITES DE RECURSOS:
-#   O bloco 'deploy.resources.limits' só é aplicado nativamente no Docker Swarm.
-#   Em Docker Compose "puro", use a flag '--compatibility' para que o Compose
-#   traduza esses limites para 'cpus' e 'mem_limit' suportados pelo engine local.
+# OS "PERSONAGENS" DESTE PROJETO:
+# - postgres: Nosso banco de dados.
+# - app1: A primeira instância da nossa aplicação Node.js.
+# - app2: A segunda instância da nossa aplicação Node.js.
+# - nginx: O "porteiro" e "controlador de tráfego" (Load Balancer).
+#
+# ======================================================================
+# COMANDOS ÚTEIS PARA O DIA A DIA
+#
+# 1. PARA SUBIR TUDO (e construir/reconstruir as imagens):
+#    docker compose up -d --build
+#    ( '-d' roda em modo "detached", liberando seu terminal)
+#
+# 2. PARA DERRUBAR TUDO:
+#    docker compose down
+#
+# 3. PARA DERRUBAR TUDO E APAGAR OS DADOS DO BANCO (CUIDADO!):
+#    docker compose down -v
+#    ( '-v' remove os "volumes", como a 'gaveta' de dados do postgres)
+#
+# NOTA SOBRE LIMITES DE RECURSOS (bloco 'deploy'):
+# O bloco 'deploy.resources.limits' serve para limitar o uso de
+# CPU e memória. Oficialmente, ele só funciona no modo "Swarm"
+# (um modo avançado do Docker).
+#
+# >> DICA: Se você rodar 'docker compose --compatibility up', <<
+# o Docker Compose "traduz" esses limites para o seu Docker local.
+# É ótimo para simular um ambiente de produção mais restrito.
 # ======================================================================
 
+# 'services' é a seção principal onde definimos cada "peça"
 services:
 
   # --------------------------------------------------------------------
-  # Serviço: Banco de Dados PostgreSQL
-  # - Imagem oficial, versão 15 (versão estável e amplamente suportada)
-  # - Persiste dados em volume nomeado 'pgdata'
-  # - Executa script de init (DDL/DML) em ./sql/init.sql na primeira subida
-  # - Healthcheck garante que o serviço esteja pronto antes dos apps
-  # - Porta 5433 no host para não colidir com instalações locais (5432)
+  # Serviço 1: O BANCO DE DADOS (PostgreSQL)
   # --------------------------------------------------------------------
   postgres:
-    image: postgres:15-alpine                  # Pin de versão evita surpresas (vs 'latest')
+    # A imagem base que vamos usar.
+    # "postgres:15-alpine" significa: use a versão 15 do Postgres,
+    # na variante "alpine", que é super leve.
+    image: postgres:15-alpine
+    # Um nome fixo e amigável para o container (facilita na hora de
+    # olhar os logs ou inspecionar)
     container_name: postgres
-    restart: always                     # Reinicia automaticamente em falhas ou reboot
+    # Política de reinício: "always"
+    # Se o container falhar ou o computador for reiniciado,
+    # o Docker tentará sub-lo novamente.
+    restart: always
 
-    # Variáveis de ambiente usadas pelo entrypoint do Postgres.
-    # POSTGRES_DB cria o banco inicial; POSTGRES_USER/PASSWORD criam superuser/senha.
-    # ATENÇÃO: POSTGRES_HOST_AUTH_METHOD=trust desabilita autenticação local,
-    #          útil para DEV/TESTE, inseguro em produção. Mantenha apenas em ambientes controlados.
+    # Variáveis de ambiente: são "instruções" que passamos para
+    # dentro do container. A imagem oficial do 'postgres' usa
+    # estas variáveis para se autoconfigurar na primeira vez.
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres_api_db
-      POSTGRES_HOST_AUTH_METHOD: trust  # DEV ONLY: remova em prod e use autenticação padrão (md5/scram)
+      POSTGRES_USER: postgres           # Cria o superusuário 'postgres'
+      POSTGRES_PASSWORD: postgres       # Define a senha dele
+      POSTGRES_DB: postgres_api_db      # Cria este banco de dados logo de início
+      # IMPORTANTE (SÓ PARA DEV): Isso desliga a checagem de senha
+      # para conexões vindas de dentro da rede do Docker.
+      # Facilita os testes, mas NUNCA use 'trust' em produção.
+      POSTGRES_HOST_AUTH_METHOD: trust
 
-    # Volumes:
-    # - 'pgdata' guarda os arquivos do cluster e sobrevive a 'docker compose down'
-    # - init.sql é montado como somente leitura (':ro') e roda só se o cluster for novo
+    # Volumes: A "mágica" da persistência de dados.
+    # Volumes são como "gavetas" de dados que vivem fora do container.
     volumes:
+      # Formato: [gaveta_no_docker] : [pasta_dentro_do_container]
+      # 'pgdata' é o nome da nossa "gaveta".
+      # '/var/lib/postgresql/data' é a pasta onde o Postgres
+      # *dentro* do container salva seus arquivos de dados.
+      # RESULTADO: Se você derrubar o container, seus dados
+      # continuarão salvos na "gaveta" 'pgdata'.
       - pgdata:/var/lib/postgresql/data
+      
+      # Montamos nosso script SQL inicial.
+      # O entrypoint do Postgres é inteligente: ele procura arquivos
+      # em '/docker-entrypoint-initdb.d/' e os executa
+      # AUTOMATICAMENTE na primeira vez que o banco é criado.
+      # ':ro' significa "read-only" (apenas leitura).
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-    # Limites de CPU e memória:
-    # - Em Swarm: aplicados diretamente
-    # - Em Compose local: use '--compatibility' para converter
+    # Limites de recursos (veja a nota no topo do arquivo)
     deploy:
       resources:
         limits:
-          cpus: "0.80"
-          memory: "250MB"
+          cpus: "0.80"   # Limita a 80% de um núcleo de CPU
+          memory: "250MB" # Limita a 250MB de RAM
 
-    # Porta do host 5433 -> 5432 do container (evita conflito com Postgres local)
+    # Mapeamento de Portas
+    # Formato: [PORTA_NO_SEU_PC] : [PORTA_DENTRO_DO_CONTAINER]
+    # Estamos "ligando" a porta 5433 do seu computador à porta
+    # interna 5432 do container.
+    # Por que 5433? Para não dar conflito se você já tiver
+    # um Postgres rodando localmente na porta 5432 padrão.
     ports:
       - "5433:5432"
 
-    # Healthcheck: 'pg_isready' retorna sucesso quando o servidor aceita conexões
+    # Teste de Saúde (Healthcheck)
+    # Diz ao Docker como verificar se este serviço está
+    # *realmente pronto* para receber conexões.
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres_api_db" ]
-      interval: 10s                     # faz o teste a cada 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s                 # tempo extra para o Postgres iniciar antes de começar a cobrar retries
+      # O comando de teste:
+      # Ele usa 'psql' para conectar no banco 'postgres_api_db' e
+      # verificar se existem mais de 1 tabela no schema 'public'.
+      # Isso garante não apenas que o Postgres subiu, mas que o
+      # nosso script 'init.sql' (que cria as tabelas) já terminou!
+      test: [ "CMD-SHELL", "psql -U postgres -d postgres_api_db -tAc \"SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' GROUP BY table_schema HAVING COUNT(*) > 1\" | grep -q ." ]
+      interval: "5s"     # Tentar a cada 5 segundos
+      timeout: "5s"      # Desistir se o comando demorar mais de 5s
+      retries: 10        # Tentar 10 vezes antes de marcar como "unhealthy"
+      start_period: "10s" # Dar 10s de "carência" antes de começar a testar
 
   # --------------------------------------------------------------------
-  # Serviço: app1 (Node.js)
-  # - Primeira instância da aplicação, para paralelizar atendimentos
-  # - Expõe a porta 3001 internamente (Nginx acessa via rede de serviço)
-  # - Depende do Postgres estar saudável (healthcheck OK)
+  # Serviço 2: APLICAÇÃO INSTÂNCIA 1 (Node.js)
   # --------------------------------------------------------------------
   app1:
-    build: ./app                        # Dockerfile em ./app (gera imagem da aplicação)
+    # 'build' diz ao Compose: "Não baixe uma imagem pronta,
+    # construa esta imagem você mesmo."
+    build:
+      # 'context: .' diz: "O 'contexto' do build é a pasta raiz ('.')
+      # onde este docker-compose.yml está."
+      context: .
+      # 'dockerfile' diz: "A 'receita' (Dockerfile) está neste caminho
+      # (relativo ao 'context')."
+      dockerfile: ./app/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1 # Otimização para builds em CI/CD
     container_name: app1
-
-    # Variáveis de ambiente padrão para configurar HTTP e conexão com o banco
+    
+    # Variáveis de ambiente que a *nossa aplicação* Node.js vai ler
     environment:
-      PORT: 3001
-      DB_HOST: postgres                 # Usa o nome do serviço como hostname (DNS interno do Compose)
+      PORT: 3001                      # A porta *interna* que a app vai escutar
+      
+      # --- Configuração do Banco ---
+      # A MÁGICA DO COMPOSE: Para conectar ao banco, não usamos
+      # 'localhost' ou IP. Usamos o *nome do serviço* ('postgres').
+      # O Docker Compose tem um DNS interno que faz 'postgres'
+      # apontar para o IP correto do container do banco.
+      DB_HOST: postgres
+      # Usamos a porta INTERNA do Postgres (5432), não a
+      # porta mapeada no seu PC (5433).
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
-      PG_MAX: 30
-      HOSTNAME: app1                    # Útil para logs/observabilidade
+      PG_MAX: 30                      # Exemplo de variável customizada
+      HOSTNAME: app1                  # Útil para saber qual instância logou
 
-    # 'expose' publica a porta apenas na rede interna do Compose (NÃO no host)
-    # Nginx enxergará 'app1:3001' via DNS interno; nada abre no host
+    # "Expor" uma porta.
+    # >> IMPORTANTE: 'expose' é DIFERENTE de 'ports' <<
+    # 'expose' NÃO abre a porta no seu PC.
+    # Ele apenas "avisa" aos *outros containers* (como o Nginx)
+    # que este container escuta na porta 3001.
+    # É uma porta apenas para a rede interna do Docker.
     expose:
       - "3001"
 
-    # 'depends_on' com condição de saúde: só considera "ok" após healthcheck do Postgres.
-    # Observação: o suporte a 'condition: service_healthy' requer Docker Compose moderno.
+    # Controle de Ordem de Subida
+    # 'app1' só vai tentar subir DEPOIS que o serviço 'postgres'
+    # estiver com o status "service_healthy" (definido pelo
+    # nosso 'healthcheck' lá em cima).
+    # Isso evita que a app suba e falhe porque o banco
+    # ainda não estava pronto.
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,69 +175,85 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: "100MB"
+          cpus: "0.25"   # Limita a 25% de um núcleo de CPU
+          memory: "100MB" # Limita a 100MB de RAM
 
-    restart: unless-stopped             # Reinicia salvo se explicitamente parado
+    # Reinicia o container se ele falhar, a menos que
+    # nós tenhamos parado ele manualmente.
+    restart: unless-stopped
 
   # --------------------------------------------------------------------
-  # Serviço: app2 (Node.js)
-  # - Segunda instância da aplicação (replica app1) para balanceamento
-  # - Porta interna 3002
+  # Serviço 3: APLICAÇÃO INSTÂNCIA 2 (Node.js)
+  # --------------------------------------------------------------------
+  # Esta é uma cópia exata de 'app1', servindo como uma segunda
+  # trabalhadora. O Nginx vai distribuir o tráfego entre 'app1' e 'app2'
+  # (isso é chamado de "Balanceamento de Carga" ou "Load Balancing").
+  # A única diferença é a porta interna (3002) e o HOSTNAME.
   # --------------------------------------------------------------------
   app2:
-    build: ./app
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: app2
-
     environment:
-      PORT: 3002
-      DB_HOST: postgres
+      PORT: 3002                      # Escuta na porta 3002
+      DB_HOST: postgres               # Conecta no *mesmo* banco
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
       PG_MAX: 30
-      HOSTNAME: app2
-
+      HOSTNAME: app2                  # Identifica como 'app2' nos logs
     expose:
       - "3002"
-
     depends_on:
       postgres:
         condition: service_healthy
-
     deploy:
       resources:
         limits:
           cpus: "0.25"
           memory: "100MB"
-
     restart: unless-stopped
 
   # --------------------------------------------------------------------
-  # Serviço: nginx (reverse proxy / balanceador)
-  # - Recebe tráfego no host:9999 e distribui para app1 e app2
-  # - Requer um nginx.conf que:
-  #     * escute na porta 9999;
-  #     * aponte 'upstream' para 'app1:3001' e 'app2:3002';
-  #     * faça proxy_pass para o upstream.
+  # Serviço 4: O "PORTEIRO" (Nginx Reverse Proxy)
+  # --------------------------------------------------------------------
+  # O Nginx será o único ponto de entrada para o mundo exterior.
+  # Ele atua como um "controlador de tráfego" (Reverse Proxy):
+  # 1. Recebe todos os pedidos em http://localhost:9999
+  # 2. Decide para qual 'app' enviar o pedido (app1 ou app2)
+  # 3. Envia a resposta de volta para o usuário.
   # --------------------------------------------------------------------
   nginx:
-    image: nginx:alpine                 # Em produção, prefira fixar versão (ex.: nginx:1.26-alpine)
+    image: nginx:alpine               # Imagem oficial e leve
     container_name: nginx
 
-    # Mapeamento de porta do host -> container
-    # Garante acesso externo via http://localhost:9999
+    # Mapeamento de Porta
+    # Este é o único container que fala com o seu PC (host).
+    # Ligamos a porta 9999 do seu PC à porta 9999 do container.
     ports:
       - "9999:9999"
 
-    # Monta a configuração customizada do Nginx sobre /etc/nginx/nginx.conf
-    # ATENÇÃO: o arquivo deve existir e conter 'listen 9999;' no 'server { ... }'
+    # Montando a configuração
+    # Estamos "injetando" nosso próprio arquivo de configuração
+    # (que você deve criar em ./nginx/nginx.conf) por cima do
+    # arquivo de configuração padrão do Nginx.
+    #
+    # >> VOCÊ PRECISA CRIAR ESTE ARQUIVO! <<
+    # Dentro dele, você deve configurar o Nginx para:
+    # 1. Escutar (listen) na porta 9999.
+    # 2. Definir um 'upstream' com 'server app1:3001;' e 'server app2:3002;'.
+    # 3. Fazer 'proxy_pass' para esse 'upstream'.
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
 
-    # Sobe depois que as apps estiverem "disponíveis" (do ponto de vista do Compose)
-    # Observação: isso NÃO garante que o HTTP da app já responda 200; apenas ordena a criação.
+    # Ordem de Subida
+    # Garante que o Nginx só suba *depois* que 'app1' e 'app2'
+    # tiverem sido criados. (Nota: Isso não espera que as apps
+    # estejam *prontas*, apenas que os containers tenham iniciado).
     depends_on:
       - app1
       - app2
@@ -179,9 +267,15 @@ services:
     restart: unless-stopped
 
 # ----------------------------------------------------------------------
-# Volumes nomeados
-# - 'pgdata': armazena os dados do Postgres
-#   Para remover dados completamente: 'docker volume rm <projeto>_pgdata'
+# Declaração dos Volumes
+# ----------------------------------------------------------------------
+# Aqui nós "declaramos" oficialmente a "gaveta" 'pgdata' que
+# usamos lá em cima no serviço 'postgres'. O Docker agora sabe
+# que deve gerenciar este volume.
+#
+# Lembrete: `docker compose down -v` apaga esta gaveta e os dados.
+# `docker compose down` (sem -v) apenas derruba o container,
+# mas os dados permanecem.
 # ----------------------------------------------------------------------
 volumes:
   pgdata:
