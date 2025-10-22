@@ -106,12 +106,10 @@ services:
     # Diz ao Docker como verificar se este serviço está
     # *realmente pronto* para receber conexões.
     healthcheck:
-      # O comando de teste:
-      # Ele usa 'psql' para conectar no banco 'postgres_api_db' e
-      # verificar se existem mais de 1 tabela no schema 'public'.
-      # Isso garante não apenas que o Postgres subiu, mas que o
-      # nosso script 'init.sql' (que cria as tabelas) já terminou!
-      test: [ "CMD-SHELL", "psql -U postgres -d postgres_api_db -tAc \"SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' GROUP BY table_schema HAVING COUNT(*) > 1\" | grep -q ." ]
+      # Este teste verifica se a tabela '_init_done' existe.
+      # A tabela '_init_done' deve ser criada como ÚLTIMA linha do seu init.sql.
+      # Isso garante que o script rodou 100% antes de marcar como healthy.
+      test: [ "CMD-SHELL", "psql -U postgres -d postgres_api_db -tAc \"SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '_init_done'\" | grep -q 1" ]
       interval: "5s"     # Tentar a cada 5 segundos
       timeout: "5s"      # Desistir se o comando demorar mais de 5s
       retries: 10        # Tentar 10 vezes antes de marcar como "unhealthy"
@@ -150,7 +148,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
-      PG_MAX: 30                      # Exemplo de variável customizada
+      PG_MAX: 10                      # Exemplo de variável customizada
       HOSTNAME: app1                  # Útil para saber qual instância logou
 
     # "Expor" uma porta.
@@ -204,7 +202,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
-      PG_MAX: 30
+      PG_MAX: 10
       HOSTNAME: app2                  # Identifica como 'app2' nos logs
     expose:
       - "3002"
