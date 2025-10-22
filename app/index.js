@@ -93,6 +93,7 @@ const pool = new Pool({
 
     // Configurações do "chaveiro":
     max: PG_MAX,                     // Quantas "chaves" (conexões) no máximo
+    min: 5,
     idleTimeoutMillis: 20000,        // Se uma "chave" ficar 20s sem uso, ela é "reciclada"
 });
 
