@@ -148,6 +148,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
+      PG_MIN: 5
       PG_MAX: 10                      # Exemplo de variável customizada
       HOSTNAME: app1                  # Útil para saber qual instância logou
 
@@ -159,6 +160,14 @@ services:
     # É uma porta apenas para a rede interna do Docker.
     expose:
       - "3001"
+
+    # Healthcheck para a aplicação HTTP
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
+      interval: "5s"
+      timeout: "5s"
+      retries: 60
+      start_period: "10s"
 
     # Controle de Ordem de Subida
     # 'app1' só vai tentar subir DEPOIS que o serviço 'postgres'
@@ -202,10 +211,18 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
+      PG_MIN: 5
       PG_MAX: 10
       HOSTNAME: app2                  # Identifica como 'app2' nos logs
     expose:
       - "3002"
+    # Healthcheck para a aplicação HTTP
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
+      interval: "5s"
+      timeout: "5s"
+      retries: 60
+      start_period: "10s"
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,9 +269,13 @@ services:
     # Garante que o Nginx só suba *depois* que 'app1' e 'app2'
     # tiverem sido criados. (Nota: Isso não espera que as apps
     # estejam *prontas*, apenas que os containers tenham iniciado).
+    # Ordem de Subida ATUALIZADA
+    # O Nginx agora espera as apps ficarem "healthy"
     depends_on:
-      - app1
-      - app2
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
 
     deploy:
       resources:

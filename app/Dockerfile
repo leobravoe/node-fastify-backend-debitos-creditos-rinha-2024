@@ -58,7 +58,8 @@ FROM node:22-alpine
 RUN apk add --no-cache \
     build-base \
     python3 \
-    postgresql-dev
+    postgresql-dev \
+    curl
 
 # ----------------------------------------------------------------------
 # PASSO 3: DEFININDO NOSSO ESPAÇO DE TRABALHO
