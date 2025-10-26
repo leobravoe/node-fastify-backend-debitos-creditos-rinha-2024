@@ -1,15 +1,6 @@
 'use strict';
 
-// index.js — minimal + otimizações estáveis (sem logs)
-// - Pass-through de JSON via ::text (sem parse/serialize no Node)
-// - Guards curtos e ordenados (early-returns)
-// - Prepared statements nomeados
-// - Pool pg-native com connectionTimeoutMillis
-// - Fastify com bodyLimit pequeno e roteamento direto
-// - Defesas contra "null" textual/formatos inesperados
-// - Timeouts de sessão no Postgres por conexão (statement/idle/lock) e timezone
-// - Pool.on('error') para evitar crash por erros assíncronos
-// - Bootstrap em uma única ida ao banco
+// main.js — minimal + otimizações estáveis (sem logs)
 
 const fastify = require('fastify')({
   logger: false,
@@ -33,24 +24,27 @@ const pool = new Pool({
   database: process.env.DB_DATABASE,
   max: PG_MAX,
   min: PG_MIN,
-  idleTimeoutMillis: 20000,
-  connectionTimeoutMillis: 2000,
+  idleTimeoutMillis: 20000
 });
 
-// Definições de sessão no PG (timeouts seguros por conexão)
+/* Definições de sessão no PG (por conexão) */
 pool.on('connect', (client) => {
-  client.query("SET statement_timeout = '2000ms'");
-  client.query("SET idle_in_transaction_session_timeout = '2000ms'");
+  client.query([
+    "SET statement_timeout = '10000ms'",
+    "SET idle_in_transaction_session_timeout = '2000ms'",
+    "SET synchronous_commit = 'off'"
+  ].join('; '));
 });
 
-// Evita crash do processo em erros assíncronos do pool
-pool.on('error', () => { /* noop: próximas operações responderão 500 */ });
+/* Evita crash do processo em erros assíncronos do pool */
+pool.on('error', () => {});
 
-/* Ajustes HTTP simples */
+/* Ajustes HTTP */
 fastify.after(() => {
   fastify.server.keepAliveTimeout = 60000;
   fastify.server.headersTimeout   = 61000;
   fastify.server.requestTimeout   = 65000;
+  fastify.server.on('connection', (socket) => socket.setNoDelay(true));
 });
 
 const CT_JSON = 'application/json';
@@ -136,7 +130,7 @@ END;
 $$ LANGUAGE plpgsql;
 `;
 
-/* Prepared statements (nomeados) */
+/* Prepared statements */
 const STMT_GET_EXTRATO = {
   name: 'get-extrato-text',
   text: 'SELECT get_extrato($1)::text AS extrato_json',
@@ -145,60 +139,40 @@ const STMT_PROCESS_TX = {
   name: 'process-transaction-text',
   text: 'SELECT process_transaction($1, $2, $3, $4)::text AS response_json',
 };
-
-function qGetExtrato(id) {
-  return { name: STMT_GET_EXTRATO.name, text: STMT_GET_EXTRATO.text, values: [id] };
-}
-function qProcessTx(id, v, t, d) {
-  return { name: STMT_PROCESS_TX.name, text: STMT_PROCESS_TX.text, values: [id, v, t, d] };
-}
+const qGetExtrato = (id) => ({ ...STMT_GET_EXTRATO, values: [id] });
+const qProcessTx  = (id, v, t, d) => ({ ...STMT_PROCESS_TX, values: [id, v, t, d] });
 
 /* Rotas */
-
 fastify.get('/clientes/:id/extrato', async (request, reply) => {
   const id = Number(request.params.id);
-
-  // id inteiro dentro do range => 1..5
-  if (id !== (id | 0) || id < ID_MIN || id > ID_MAX) {
+  if ((id | 0) !== id || id < ID_MIN || id > ID_MAX) {
     return reply.code(404).send();
   }
 
   try {
     const result = await pool.query(qGetExtrato(id));
-    const rows = result.rows;
-    if (rows.length === 0) return reply.code(404).send();
-
-    const extratoText = rows[0].extrato_json;
-
-    // 404 quando função retorna JSON NULL
-    if (extratoText === null || extratoText === 'null') {
-      return reply.code(404).send();
-    }
-    // formato inesperado => 500
-    if (typeof extratoText !== 'string' || extratoText.charCodeAt(0) !== 123 /* '{' */ || extratoText.indexOf('"saldo"') === -1) {
+    const extratoText = result.rows[0]?.extrato_json;
+    if (extratoText === null || extratoText === 'null') return reply.code(404).send();
+    if (typeof extratoText !== 'string' || !extratoText.startsWith('{') || !extratoText.includes('"saldo"')) {
       return reply.code(500).send();
     }
-
-    return reply.header('content-type', CT_JSON).send(extratoText);
+    return reply.type(CT_JSON).send(extratoText);
   } catch {
     return reply.code(500).send();
   }
 });
 
 fastify.post('/clientes/:id/transacoes', async (request, reply) => {
-  // Rejeita payloads não-JSON sem alocar body (permissivo e barato)
   const ct = request.headers['content-type'];
-  if (typeof ct !== 'string' || ct.length < 16 || ct.toLowerCase().slice(0, 16) !== 'application/json') {
+  if (typeof ct !== 'string' || !ct.toLowerCase().startsWith('application/json')) {
     return reply.code(415).send();
   }
 
   const id = Number(request.params.id);
   const body = request.body || {};
 
-  // Guards muito baratos primeiro
-  if (id !== (id | 0) || id < ID_MIN || id > ID_MAX) return reply.code(422).send();
+  if ((id | 0) !== id || id < ID_MIN || id > ID_MAX) return reply.code(422).send();
 
-  // Valor: int estrito e positivo
   const valor = body.valor | 0;
   if (valor !== body.valor || valor <= 0) return reply.code(422).send();
 
@@ -212,31 +186,23 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
 
   try {
     const result = await pool.query(qProcessTx(id, valor, tipo, descricao));
-    const rows = result.rows;
-    if (rows.length === 0) return reply.code(500).send();
-
-    const respText = rows[0].response_json || '';
-    if (respText.indexOf('"error"') !== -1) {
-      return reply.code(422).send();
-    }
-    const s0 = respText.charCodeAt(0);
-    if (s0 !== 123 /* '{' */ || respText.indexOf('"limite"') === -1 || respText.indexOf('"saldo"') === -1) {
+    const respText = result.rows[0]?.response_json || '';
+    if (respText.includes('"error"')) return reply.code(422).send();
+    if (!respText.startsWith('{') || !respText.includes('"limite"') || !respText.includes('"saldo"')) {
       return reply.code(500).send();
     }
-
-    return reply.header('content-type', CT_JSON).send(respText);
+    return reply.type(CT_JSON).send(respText);
   } catch {
     return reply.code(500).send();
   }
 });
 
-/* Bootstrap (silencioso) */
+/* Bootstrap */
 (async () => {
   try {
-    // Uma única ida ao banco (idempotente)
-    await pool.query(
-      CREATE_INDEX_SQL + CREATE_EXTRACT_FUNCTION_SQL + CREATE_TRANSACTION_FUNCTION_SQL
-    );
+    await pool.query(CREATE_INDEX_SQL);
+    await pool.query(CREATE_EXTRACT_FUNCTION_SQL);
+    await pool.query(CREATE_TRANSACTION_FUNCTION_SQL);
 
     const port = Number(process.env.PORT) || 3000;
     await fastify.listen({ port, host: '0.0.0.0' });
@@ -245,7 +211,7 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
   }
 })();
 
-/* Graceful shutdown (opcional) */
+/* Graceful shutdown */
 function shutdown() {
   Promise.allSettled([fastify.close(), pool.end()]).finally(() => process.exit(0));
 }

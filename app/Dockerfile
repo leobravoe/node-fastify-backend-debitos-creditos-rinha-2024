@@ -34,7 +34,7 @@
 # Todo Dockerfile começa com "FROM". Estamos dizendo ao Docker:
 # "Comece com um 'mini-computador' que já tenha o Node.js instalado."
 # A versão "alpine" é famosa por ser extremamente pequena e segura.
-FROM node:22-alpine
+FROM node:25-alpine
 
 # ----------------------------------------------------------------------
 # PASSO 2: INSTALANDO FERRAMENTAS DE CONSTRUÇÃO
