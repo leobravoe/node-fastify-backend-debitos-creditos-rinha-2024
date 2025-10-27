@@ -167,7 +167,7 @@ services:
       interval: "5s"
       timeout: "5s"
       retries: 60
-      start_period: "10s"
+      start_period: "60s"
 
     # Controle de Ordem de Subida
     # 'app1' só vai tentar subir DEPOIS que o serviço 'postgres'
@@ -222,7 +222,7 @@ services:
       interval: "5s"
       timeout: "5s"
       retries: 60
-      start_period: "10s"
+      start_period: "60s"
     depends_on:
       postgres:
         condition: service_healthy
