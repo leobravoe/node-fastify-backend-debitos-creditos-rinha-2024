@@ -4,7 +4,6 @@
 
 const fastify = require('fastify')({
   logger: false,
-  bodyLimit: 512,
   caseSensitive: true,
   ignoreTrailingSlash: true,
 });
@@ -23,15 +22,12 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   max: PG_MAX,
-  min: PG_MIN,
-  idleTimeoutMillis: 20000
+  min: PG_MIN
 });
 
 /* Definições de sessão no PG (por conexão) */
 pool.on('connect', (client) => {
   client.query([
-    "SET statement_timeout = '10000ms'",
-    "SET idle_in_transaction_session_timeout = '2000ms'",
     "SET synchronous_commit = 'off'"
   ].join('; '));
 });
@@ -41,9 +37,6 @@ pool.on('error', () => {});
 
 /* Ajustes HTTP */
 fastify.after(() => {
-  fastify.server.keepAliveTimeout = 60000;
-  fastify.server.headersTimeout   = 61000;
-  fastify.server.requestTimeout   = 65000;
   fastify.server.on('connection', (socket) => socket.setNoDelay(true));
 });
 
