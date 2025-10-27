@@ -163,7 +163,7 @@ services:
 
     # Healthcheck para a aplicação HTTP
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
+      test: [ "CMD-SHELL", "sleep 1 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
       interval: "5s"
       timeout: "5s"
       retries: 60
@@ -218,7 +218,7 @@ services:
       - "3002"
     # Healthcheck para a aplicação HTTP
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
+      test: [ "CMD-SHELL", "sleep 1 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
       interval: "5s"
       timeout: "5s"
       retries: 60
