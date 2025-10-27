@@ -33,7 +33,7 @@ pool.on('connect', (client) => {
 });
 
 /* Evita crash do processo em erros assíncronos do pool */
-pool.on('error', () => {});
+pool.on('error', () => { });
 
 /* Ajustes HTTP */
 fastify.after(() => {
@@ -133,12 +133,13 @@ const STMT_PROCESS_TX = {
   text: 'SELECT process_transaction($1, $2, $3, $4)::text AS response_json',
 };
 const qGetExtrato = (id) => ({ ...STMT_GET_EXTRATO, values: [id] });
-const qProcessTx  = (id, v, t, d) => ({ ...STMT_PROCESS_TX, values: [id, v, t, d] });
+const qProcessTx = (id, v, t, d) => ({ ...STMT_PROCESS_TX, values: [id, v, t, d] });
 
 /* Rotas */
 fastify.get('/clientes/:id/extrato', async (request, reply) => {
-  const id = Number(request.params.id);
-  if ((id | 0) !== id || id < ID_MIN || id > ID_MAX) {
+  // 404 para id fora de 1..=5
+  const id  = (request.params.id | 0);
+  if (id < ID_MIN || id > ID_MAX || id !== Number(request.params.id)) {
     return reply.code(404).send();
   }
 
@@ -156,35 +157,43 @@ fastify.get('/clientes/:id/extrato', async (request, reply) => {
 });
 
 fastify.post('/clientes/:id/transacoes', async (request, reply) => {
+  // 415 se não for application/json
   const ct = request.headers['content-type'];
-  if (typeof ct !== 'string' || !ct.toLowerCase().startsWith('application/json')) {
+  if (!ct || !/^application\/json\b/i.test(ct)) {
     return reply.code(415).send();
   }
 
-  const id = Number(request.params.id);
-  const body = request.body || {};
+  // 404 para id fora de 1..=5
+  const id  = (request.params.id | 0);
+  if (id < ID_MIN || id > ID_MAX || id !== Number(request.params.id)) {
+    return reply.code(404).send();
+  }
 
-  if ((id | 0) !== id || id < ID_MIN || id > ID_MAX) return reply.code(422).send();
+  // Payload inválido => 422
+  const b = request.body;
+  const valor = b?.valor | 0;
+  if (valor !== b?.valor || valor <= 0) {
+    return reply.code(422).send();
+  }
 
-  const valor = body.valor | 0;
-  if (valor !== body.valor || valor <= 0) return reply.code(422).send();
+  // Validação de tipo
+  const tipo = b?.tipo;
+  if (tipo !== 'c' && tipo !== 'd') {
+    return reply.code(422).send();
+  }
 
-  const tipo = body.tipo;
-  if (tipo !== 'c' && tipo !== 'd') return reply.code(422).send();
-
-  const descricao = body.descricao;
-  if (typeof descricao !== 'string' || descricao.length === 0 || descricao.length > 10) {
+  // limite por BYTES UTF-8 (1..=10)
+  const desc = b?.descricao;
+  const dlen = (typeof desc === 'string') ? Buffer.byteLength(desc, 'utf8') : 0;
+  if (dlen === 0 || dlen > 10) {
     return reply.code(422).send();
   }
 
   try {
-    const result = await pool.query(qProcessTx(id, valor, tipo, descricao));
+    const result = await pool.query(qProcessTx(id, valor, tipo, desc));
     const respText = result.rows[0]?.response_json || '';
-    if (respText.includes('"error"')) return reply.code(422).send();
-    if (!respText.startsWith('{') || !respText.includes('"limite"') || !respText.includes('"saldo"')) {
-      return reply.code(500).send();
-    }
-    return reply.type(CT_JSON).send(respText);
+    if (respText.includes('"error"')) return reply.code(422).send(); // sem saldo
+    return reply.type(CT_JSON).send(respText); // 200
   } catch {
     return reply.code(500).send();
   }
