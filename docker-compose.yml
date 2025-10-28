@@ -1,167 +1,110 @@
-# ======================================================================
-#         Docker Compose: O Arquiteto do Ambiente
-# ======================================================================
-#
-# O QUE É ESTE ARQUIVO?
-# Pense neste arquivo como o "arquiteto" do seu ambiente de desenvolvimento.
-# Ele diz ao Docker Compose como construir e conectar vários "containers"
-# (que são como mini-computadores) para que seu projeto funcione.
-#
-# OS "PERSONAGENS" DESTE PROJETO:
-# - postgres: Nosso banco de dados.
-# - app1: A primeira instância da nossa aplicação Node.js.
-# - app2: A segunda instância da nossa aplicação Node.js.
-# - nginx: O "porteiro" e "controlador de tráfego" (Load Balancer).
-#
-# ======================================================================
-# COMANDOS ÚTEIS PARA O DIA A DIA
-#
-# 1. PARA SUBIR TUDO (e construir/reconstruir as imagens):
-#    docker compose up -d --build
-#    ( '-d' roda em modo "detached", liberando seu terminal)
-#
-# 2. PARA DERRUBAR TUDO:
-#    docker compose down
-#
-# 3. PARA DERRUBAR TUDO E APAGAR OS DADOS DO BANCO (CUIDADO!):
-#    docker compose down -v
-#    ( '-v' remove os "volumes", como a 'gaveta' de dados do postgres)
-#
-# NOTA SOBRE LIMITES DE RECURSOS (bloco 'deploy'):
-# O bloco 'deploy.resources.limits' serve para limitar o uso de
-# CPU e memória. Oficialmente, ele só funciona no modo "Swarm"
-# (um modo avançado do Docker).
-#
-# >> DICA: Se você rodar 'docker compose --compatibility up', <<
-# o Docker Compose "traduz" esses limites para o seu Docker local.
-# É ótimo para simular um ambiente de produção mais restrito.
-# ======================================================================
+# =======================================================================================
+# DOCKER COMPOSE — GUIA COMENTADO PARA INICIANTES
+# ---------------------------------------------------------------------------------------
+# Pense neste arquivo como um “roteiro de montagem” do seu ambiente. Ele descreve,
+# em YAML, quais serviços existem (banco, apps, proxy), quais imagens usar, quais
+# portas abrir, quais variáveis de ambiente definir, como verificar se cada serviço
+# está saudável e como todos se conectam por uma rede interna automática.
+# Leia os comentários de cima para baixo: cada bloco explica, com calma, o papel
+# de cada linha logo abaixo — assim você entende o QUE faz e POR QUE existe.
+# =======================================================================================
 
-# 'services' é a seção principal onde definimos cada "peça"
+# A chave raiz `services` lista cada contêiner que compõe o sistema. O Docker Compose
+# cria uma rede interna para eles conversarem entre si usando o NOME do serviço.
 services:
 
-  # --------------------------------------------------------------------
-  # Serviço 1: O BANCO DE DADOS (PostgreSQL)
-  # --------------------------------------------------------------------
+  # =============================================================================
+  # SERVIÇO: POSTGRES (BANCO DE DADOS)
+  # Este contêiner guarda dados de forma persistente (via volume) e expõe a porta
+  # do PostgreSQL. O bloco também mostra como “injetar” um script SQL inicial e
+  # como checar se o banco está realmente pronto antes de outras partes usarem.
+  # =============================================================================
   postgres:
-    # A imagem base que vamos usar.
-    # "postgres:15-alpine" significa: use a versão 15 do Postgres,
-    # na variante "alpine", que é super leve.
+    # A imagem base é “postgres:15-alpine”: Postgres 15 sobre Alpine Linux (bem leve).
     image: postgres:15-alpine
-    # Um nome fixo e amigável para o container (facilita na hora de
-    # olhar os logs ou inspecionar)
+
+    # Nome fixo do contêiner facilita logs/diagnósticos (aparece em `docker ps`).
     container_name: postgres
-    # Política de reinício: "always"
-    # Se o container falhar ou o computador for reiniciado,
-    # o Docker tentará sub-lo novamente.
+
+    # Política de reinício: se cair, o Docker tenta levantar de novo automaticamente.
     restart: always
 
-    # Variáveis de ambiente: são "instruções" que passamos para
-    # dentro do container. A imagem oficial do 'postgres' usa
-    # estas variáveis para se autoconfigurar na primeira vez.
+    # Variáveis de ambiente consumidas pela imagem oficial para configuração inicial
+    # (usuário, senha, banco padrão). Em desenvolvimento, isso agiliza o setup.
     environment:
-      POSTGRES_USER: postgres           # Cria o superusuário 'postgres'
-      POSTGRES_PASSWORD: postgres       # Define a senha dele
-      POSTGRES_DB: postgres_api_db      # Cria este banco de dados logo de início
-      # IMPORTANTE (SÓ PARA DEV): Isso desliga a checagem de senha
-      # para conexões vindas de dentro da rede do Docker.
-      # Facilita os testes, mas NUNCA use 'trust' em produção.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres_api_db
+      # Atenção: HOST_AUTH_METHOD=trust desativa exigência de senha na rede interna
+      # do Compose. É prático para testes, mas NÃO use em produção.
       POSTGRES_HOST_AUTH_METHOD: trust
 
-    # Volumes: A "mágica" da persistência de dados.
-    # Volumes são como "gavetas" de dados que vivem fora do container.
+    # Volumes persistem dados fora do contêiner. Mesmo que o contêiner seja removido,
+    # as tabelas permanecem no volume “pgdata”. Também montamos um SQL inicial.
     volumes:
-      # Formato: [gaveta_no_docker] : [pasta_dentro_do_container]
-      # 'pgdata' é o nome da nossa "gaveta".
-      # '/var/lib/postgresql/data' é a pasta onde o Postgres
-      # *dentro* do container salva seus arquivos de dados.
-      # RESULTADO: Se você derrubar o container, seus dados
-      # continuarão salvos na "gaveta" 'pgdata'.
       - pgdata:/var/lib/postgresql/data
-      
-      # Montamos nosso script SQL inicial.
-      # O entrypoint do Postgres é inteligente: ele procura arquivos
-      # em '/docker-entrypoint-initdb.d/' e os executa
-      # AUTOMATICAMENTE na primeira vez que o banco é criado.
-      # ':ro' significa "read-only" (apenas leitura).
+      # O arquivo `sql/init.sql` roda na primeira criação do banco (entrypoint do Postgres
+      # procura scripts em /docker-entrypoint-initdb.d/). O sufixo :ro monta como leitura.
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-    # Limites de recursos (veja a nota no topo do arquivo)
+    # Limites de CPU e memória ajudam a simular um ambiente restrito. Em Compose “puro”,
+    # use o modo compatibilidade; em Swarm, esses limites são aplicados nativamente.
     deploy:
       resources:
         limits:
-          cpus: "0.80"   # Limita a 80% de um núcleo de CPU
-          memory: "250MB" # Limita a 250MB de RAM
+          cpus: "0.80"
+          memory: "250MB"
 
-    # Mapeamento de Portas
-    # Formato: [PORTA_NO_SEU_PC] : [PORTA_DENTRO_DO_CONTAINER]
-    # Estamos "ligando" a porta 5433 do seu computador à porta
-    # interna 5432 do container.
-    # Por que 5433? Para não dar conflito se você já tiver
-    # um Postgres rodando localmente na porta 5432 padrão.
+    # Mapeamento de portas: 5433 (seu PC) -> 5432 (dentro do contêiner). Assim você
+    # evita conflito com um Postgres local que já use 5432.
     ports:
       - "5433:5432"
 
-    # Teste de Saúde (Healthcheck)
-    # Diz ao Docker como verificar se este serviço está
-    # *realmente pronto* para receber conexões.
+    # Healthcheck: receita para o Docker saber quando o banco está REALMENTE pronto.
+    # Aqui verificamos se a tabela _init_done (criada ao final do seu init.sql) existe.
     healthcheck:
-      # Este teste verifica se a tabela '_init_done' existe.
-      # A tabela '_init_done' deve ser criada como ÚLTIMA linha do seu init.sql.
-      # Isso garante que o script rodou 100% antes de marcar como healthy.
       test: [ "CMD-SHELL", "psql -U postgres -d postgres_api_db -tAc \"SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '_init_done'\" | grep -q 1 && sleep 2" ]
-      interval: "5s"     # Tentar a cada 5 segundos
-      timeout: "5s"      # Desistir se o comando demorar mais de 5s
-      retries: 10        # Tentar 10 vezes antes de marcar como "unhealthy"
-      start_period: "10s" # Dar 10s de "carência" antes de começar a testar
+      interval: "5s"
+      timeout: "5s"
+      retries: 10
+      start_period: "10s"
 
-  # --------------------------------------------------------------------
-  # Serviço 2: APLICAÇÃO INSTÂNCIA 1 (Node.js)
-  # --------------------------------------------------------------------
+  # =============================================================================
+  # SERVIÇO: APP1 (INSTÂNCIA DA APLICAÇÃO)
+  # A aplicação é construída a partir de um Dockerfile próprio e parametrizada via
+  # variáveis de ambiente para achar o banco. “expose” publica a porta apenas na
+  # rede interna (Nginx enxerga), e um healthcheck HTTP confirma se a rota responde.
+  # =============================================================================
   app1:
-    # 'build' diz ao Compose: "Não baixe uma imagem pronta,
-    # construa esta imagem você mesmo."
+    # O Compose vai construir a imagem localmente usando o Dockerfile indicado.
     build:
-      # 'context: .' diz: "O 'contexto' do build é a pasta raiz ('.')
-      # onde este docker-compose.yml está."
       context: .
-      # 'dockerfile' diz: "A 'receita' (Dockerfile) está neste caminho
-      # (relativo ao 'context')."
       dockerfile: ./app/Dockerfile
+      # Flag comum para builds mais rápidos em pipelines (cache inline do BuildKit).
       args:
-        BUILDKIT_INLINE_CACHE: 1 # Otimização para builds em CI/CD
+        BUILDKIT_INLINE_CACHE: 1
     container_name: app1
-    
-    # Variáveis de ambiente que a *nossa aplicação* Node.js vai ler
+
+    # Variáveis usadas pelo código da aplicação para expor porta e conectar ao banco.
+    # Repare que DB_HOST é “postgres”: é o nome do serviço, resolvido via DNS interno.
     environment:
-      PORT: 3001                      # A porta *interna* que a app vai escutar
-      
-      # --- Configuração do Banco ---
-      # A MÁGICA DO COMPOSE: Para conectar ao banco, não usamos
-      # 'localhost' ou IP. Usamos o *nome do serviço* ('postgres').
-      # O Docker Compose tem um DNS interno que faz 'postgres'
-      # apontar para o IP correto do container do banco.
+      PORT: 3001
       DB_HOST: postgres
-      # Usamos a porta INTERNA do Postgres (5432), não a
-      # porta mapeada no seu PC (5433).
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
       PG_MIN: 5
-      PG_MAX: 10                      # Exemplo de variável customizada
-      HOSTNAME: app1                  # Útil para saber qual instância logou
+      PG_MAX: 10
+      HOSTNAME: app1
 
-    # "Expor" uma porta.
-    # >> IMPORTANTE: 'expose' é DIFERENTE de 'ports' <<
-    # 'expose' NÃO abre a porta no seu PC.
-    # Ele apenas "avisa" aos *outros containers* (como o Nginx)
-    # que este container escuta na porta 3001.
-    # É uma porta apenas para a rede interna do Docker.
+    # `expose` NÃO abre a porta para fora do host; apenas torna a 3001 visível na rede
+    # interna do Compose (para o Nginx e outros serviços).
     expose:
       - "3001"
 
-    # Healthcheck para a aplicação HTTP
+    # Healthcheck HTTP simples: faz GET num endpoint da própria API. O `sleep` serve
+    # como pequeno respiro antes/depois da tentativa, reduzindo falsos negativos.
     healthcheck:
       test: [ "CMD-SHELL", "sleep 2 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1 && sleep 2" ]
       interval: "5s"
@@ -169,34 +112,26 @@ services:
       retries: 60
       start_period: "60s"
 
-    # Controle de Ordem de Subida
-    # 'app1' só vai tentar subir DEPOIS que o serviço 'postgres'
-    # estiver com o status "service_healthy" (definido pelo
-    # nosso 'healthcheck' lá em cima).
-    # Isso evita que a app suba e falhe porque o banco
-    # ainda não estava pronto.
+    # Garante que a app só tente subir depois de o Postgres estar “saudável”.
     depends_on:
       postgres:
         condition: service_healthy
 
+    # Limites de recursos para a app — úteis em benchmarks comparáveis.
     deploy:
       resources:
         limits:
-          cpus: "0.25"   # Limita a 25% de um núcleo de CPU
-          memory: "100MB" # Limita a 100MB de RAM
+          cpus: "0.25"
+          memory: "100MB"
 
-    # Reinicia o container se ele falhar, a menos que
-    # nós tenhamos parado ele manualmente.
+    # Reinicie automaticamente se a app crashar; se você parar manualmente, o Docker respeita.
     restart: unless-stopped
 
-  # --------------------------------------------------------------------
-  # Serviço 3: APLICAÇÃO INSTÂNCIA 2 (Node.js)
-  # --------------------------------------------------------------------
-  # Esta é uma cópia exata de 'app1', servindo como uma segunda
-  # trabalhadora. O Nginx vai distribuir o tráfego entre 'app1' e 'app2'
-  # (isso é chamado de "Balanceamento de Carga" ou "Load Balancing").
-  # A única diferença é a porta interna (3002) e o HOSTNAME.
-  # --------------------------------------------------------------------
+  # =============================================================================
+  # SERVIÇO: APP2 (SEGUNDA INSTÂNCIA DA APLICAÇÃO)
+  # Clonar a app em outra porta (3002) permite que o Nginx faça balanceamento de
+  # carga entre app1 e app2. Isso melhora throughput e resiliência.
+  # =============================================================================
   app2:
     build:
       context: .
@@ -205,18 +140,17 @@ services:
         BUILDKIT_INLINE_CACHE: 1
     container_name: app2
     environment:
-      PORT: 3002                      # Escuta na porta 3002
-      DB_HOST: postgres               # Conecta no *mesmo* banco
+      PORT: 3002
+      DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_DATABASE: postgres_api_db
       PG_MIN: 5
       PG_MAX: 10
-      HOSTNAME: app2                  # Identifica como 'app2' nos logs
+      HOSTNAME: app2
     expose:
       - "3002"
-    # Healthcheck para a aplicação HTTP
     healthcheck:
       test: [ "CMD-SHELL", "sleep 2 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1 && sleep 2" ]
       interval: "5s"
@@ -233,26 +167,23 @@ services:
           memory: "100MB"
     restart: unless-stopped
 
-  # --------------------------------------------------------------------
-  # Serviço 4: O "PORTEIRO" (Nginx Reverse Proxy)
-  # --------------------------------------------------------------------
-  # O Nginx será o único ponto de entrada para o mundo exterior.
-  # Ele atua como um "controlador de tráfego" (Reverse Proxy):
-  # 1. Recebe todos os pedidos em http://localhost:9999
-  # 2. Decide para qual 'app' enviar o pedido (app1 ou app2)
-  # 3. Envia a resposta de volta para o usuário.
-  # --------------------------------------------------------------------
+  # =============================================================================
+  # SERVIÇO: NGINX (REVERSE PROXY / BALANCEADOR)
+  # O Nginx é a “porta de entrada” do sistema: recebe tráfego externo (porta 9999)
+  # e distribui para app1/app2. O arquivo nginx.conf, montado via volume, define
+  # o upstream e as regras de proxy; o healthcheck pode validar uma rota pública.
+  # =============================================================================
   nginx:
-    image: nginx:alpine               # Imagem oficial e leve
+    # Imagem leve e popular do Nginx (sobre Alpine). Ideal para proxy.
+    image: nginx:alpine
     container_name: nginx
 
-    # Mapeamento de Porta
-    # Este é o único container que fala com o seu PC (host).
-    # Ligamos a porta 9999 do seu PC à porta 9999 do container.
+    # Mapeia a porta 9999 do host para a 9999 do contêiner — ponto único de acesso.
     ports:
       - "9999:9999"
 
-    # Healthcheck para a aplicação HTTP
+    # Healthcheck HTTP do Nginx. Observação: este teste usa a variável $$PORT no curl;
+    # caso não exista no ambiente do Nginx, ajuste o alvo no seu cenário real.
     healthcheck:
       test: [ "CMD-SHELL", "sleep 2 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
       interval: "5s"
@@ -260,49 +191,33 @@ services:
       retries: 60
       start_period: "60s"
 
-    # Montando a configuração
-    # Estamos "injetando" nosso próprio arquivo de configuração
-    # (que você deve criar em ./nginx/nginx.conf) por cima do
-    # arquivo de configuração padrão do Nginx.
-    #
-    # >> VOCÊ PRECISA CRIAR ESTE ARQUIVO! <<
-    # Dentro dele, você deve configurar o Nginx para:
-    # 1. Escutar (listen) na porta 9999.
-    # 2. Definir um 'upstream' com 'server app1:3001;' e 'server app2:3002;'.
-    # 3. Fazer 'proxy_pass' para esse 'upstream'.
+    # Monta o seu arquivo de configuração customizado do Nginx para definir upstream
+    # (app1:3001, app2:3002) e regras de proxy (listen 9999, proxy_pass, etc.).
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
 
-    # Ordem de Subida
-    # Garante que o Nginx só suba *depois* que 'app1' e 'app2'
-    # tiverem sido criados. (Nota: Isso não espera que as apps
-    # estejam *prontas*, apenas que os containers tenham iniciado).
-    # Ordem de Subida ATUALIZADA
-    # O Nginx agora espera as apps ficarem "healthy"
+    # Sobe o Nginx somente quando as apps estiverem saudáveis — reduz erros de proxy.
     depends_on:
       app1:
         condition: service_healthy
       app2:
         condition: service_healthy
 
+    # Limites de recursos do proxy — úteis em testes com ambiente restrito.
     deploy:
       resources:
         limits:
           cpus: "0.2"
           memory: "100MB"
 
+    # Política de reinício padrão para serviços de borda.
     restart: unless-stopped
 
-# ----------------------------------------------------------------------
-# Declaração dos Volumes
-# ----------------------------------------------------------------------
-# Aqui nós "declaramos" oficialmente a "gaveta" 'pgdata' que
-# usamos lá em cima no serviço 'postgres'. O Docker agora sabe
-# que deve gerenciar este volume.
-#
-# Lembrete: `docker compose down -v` apaga esta gaveta e os dados.
-# `docker compose down` (sem -v) apenas derruba o container,
-# mas os dados permanecem.
-# ----------------------------------------------------------------------
+# =======================================================================================
+# VOLUMES — DECLARAÇÃO GLOBAL
+# Aqui declaramos o volume “pgdata”, que é a “gaveta” onde o Postgres guarda os dados.
+# O comando `docker compose down -v` apaga essa gaveta (e os dados). Sem `-v`, só
+# derruba os contêineres e os dados permanecem para a próxima subida.
+# =======================================================================================
 volumes:
   pgdata:
