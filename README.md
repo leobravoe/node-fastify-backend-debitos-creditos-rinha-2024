@@ -1,6 +1,6 @@
 # Guia de Comandos — `node-fastify-backend-2025`
 
-Este documento reúne comandos e procedimentos operacionais do repositório, com variações por sistema operacional quando aplicável.
+Este projeto entrega uma API de débitos e créditos em Node.js (Fastify) pensada como laboratório de performance reprodutível: você sobe a stack com Docker Compose (usando a flag de compatibilidade para honrar limites declarados), opera a aplicação atrás de um NGINX como reverse proxy, persiste no PostgreSQL e executa a simulação oficial em Gatling para medir p95, p99 e média em um ambiente controlado; o fluxo padrão inclui subir/derrubar serviços, reset transacional mínimo do banco e execução da classe de simulação, com relatórios HTML gerados ao final, o que facilita comparar versões sem ruído. A organização do repo favorece operação direta e previsível, com diretórios claros para proxy, código da aplicação, SQL e cenários de carga. Em ambientes Windows há comandos e launchers de conveniência, além de orientação para ajuste de portas efêmeras quando necessário, evitando interferências no teste.
 
 ---
 
@@ -201,6 +201,7 @@ DB_USER
 DB_PASSWORD
 DB_DATABASE
 PG_MAX
+PG_MIN
 ```
 
 Este guia descreve os procedimentos em uso no repositório conforme a estrutura atual.
