@@ -220,11 +220,6 @@ fastify.get('/clientes/:id/extrato', async (request, reply) => {
 });
 
 fastify.post('/clientes/:id/transacoes', async (request, reply) => {
-  // Exige Content-Type JSON; sem isso devolvemos 415 (tipo de mídia não suportado).
-  const ct = request.headers['content-type'];
-  if (!ct || !/^application\/json\b/i.test(ct)) {
-    return reply.code(415).send();
-  }
 
   // Valida o id do cliente no mesmo padrão da rota GET.
   const id  = (request.params.id | 0);
