@@ -80,6 +80,8 @@ docker stats --no-stream
 docker stats postgres app1
 ```
 
+---
+
 ## 6) Monitorar uso do postgres
 
 ```bash
