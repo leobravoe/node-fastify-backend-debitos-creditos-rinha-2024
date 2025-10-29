@@ -80,9 +80,15 @@ docker stats --no-stream
 docker stats postgres app1
 ```
 
+## 6) Monitorar uso do postgres
+
+```bash
+docker compose exec -it app1 sh -lc 'PGPASSWORD="postgres" pg_activity -h postgres -p 5432 -U postgres -d "postgres_api_db"'
+```
+
 ---
 
-## 6) Entrar na pasta do Gatling
+## 7) Entrar na pasta do Gatling
 
 ```bash
 cd gatling
@@ -91,7 +97,7 @@ cd gatling
 
 ---
 
-## 7) Resetar o banco e rodar a simulação (Gatling)
+## 8) Resetar o banco e rodar a simulação (Gatling)
 
 Para iniciar as simulações, a partir da raiz do projeto digite:
 
@@ -151,7 +157,7 @@ gatling/target/gatling/**/index.html
 
 ---
 
-## 8) Atualizar o projeto (sincronizar com o remoto)
+## 9) Atualizar o projeto (sincronizar com o remoto)
 
 ```bash
 git fetch --all
@@ -174,7 +180,7 @@ git clean -fdx     # inclui ignorados (ex.: node_modules)
 
 ---
 
-## 9) Informações do projeto
+## 10) Informações do projeto
 
 **Serviços:** NGINX (proxy/reverso), aplicações Node.js (Fastify), PostgreSQL e cenários de carga com Gatling (Maven Wrapper).
 

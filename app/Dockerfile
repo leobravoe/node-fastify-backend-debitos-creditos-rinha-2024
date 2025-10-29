@@ -25,7 +25,8 @@ RUN apk add --no-cache \
     build-base \
     python3 \
     postgresql-dev \
-    curl
+    curl \
+    pg_activity
 
 # [ETAPA 3/7] DIRETÓRIO DE TRABALHO
 # `WORKDIR` cria (se não existir) e define a pasta onde os próximos comandos vão rodar.
