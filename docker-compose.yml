@@ -124,8 +124,7 @@ services:
           cpus: "0.25"
           memory: "100MB"
 
-    # Reinicie automaticamente se a app crashar; se você parar manualmente, o Docker respeita.
-    restart: unless-stopped
+    restart: always             # Política de reinício automática: se o container parar/crashar, o Docker tenta subir novamente.
 
   # =============================================================================
   # SERVIÇO: APP2 (SEGUNDA INSTÂNCIA DA APLICAÇÃO)
@@ -165,7 +164,7 @@ services:
         limits:
           cpus: "0.25"
           memory: "100MB"
-    restart: unless-stopped
+    restart: always             # Política de reinício automática: se o container parar/crashar, o Docker tenta subir novamente.
 
   # =============================================================================
   # SERVIÇO: NGINX (REVERSE PROXY / BALANCEADOR)
@@ -210,8 +209,7 @@ services:
           cpus: "0.2"
           memory: "100MB"
 
-    # Política de reinício padrão para serviços de borda.
-    restart: unless-stopped
+    restart: always             # Política de reinício automática: se o container parar/crashar, o Docker tenta subir novamente.
 
 # =======================================================================================
 # VOLUMES — DECLARAÇÃO GLOBAL
