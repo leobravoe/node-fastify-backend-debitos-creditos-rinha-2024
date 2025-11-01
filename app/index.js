@@ -196,6 +196,11 @@ const qProcessTx = (id, v, t, d) => ({ ...STMT_PROCESS_TX, values: [id, v, t, d]
 // o resultado em um HTTP status coerente (200/404/415/422/500). Isso mantém o servidor previsível
 // sob carga: regras simples, poucos ramos, pouca alocação de objetos.
 // ==================================================================================================
+
+fastify.get('/health', (_req, reply) => {
+    return reply.code(200).send();
+});
+
 fastify.get('/clientes/:id/extrato', async (request, reply) => {
     // Converte o parâmetro para inteiro rápido (bitwise OR com 0) e valida o intervalo permitido.
     const id = (request.params.id | 0);
