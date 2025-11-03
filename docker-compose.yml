@@ -181,15 +181,6 @@ services:
     ports:
       - "9999:9999"
 
-    # Healthcheck HTTP do Nginx. Observação: este teste usa a variável $$PORT no curl;
-    # caso não exista no ambiente do Nginx, ajuste o alvo no seu cenário real.
-    healthcheck:
-      test: [ "CMD-SHELL", "sleep 2 && curl -f http://localhost:$$PORT/clientes/1/extrato || exit 1" ]
-      interval: "5s"
-      timeout: "5s"
-      retries: 60
-      start_period: "60s"
-
     # Monta o seu arquivo de configuração customizado do Nginx para definir upstream
     # (app1:3001, app2:3002) e regras de proxy (listen 9999, proxy_pass, etc.).
     volumes:
