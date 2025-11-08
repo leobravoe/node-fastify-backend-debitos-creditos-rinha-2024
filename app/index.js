@@ -37,6 +37,7 @@ const PG_MAX = Number(process.env.PG_MAX ?? 30);  // número máximo de conexõe
 
 const pool = new Pool({
     // Parâmetros de conexão lidos do ambiente — assim o mesmo binário roda em qualquer lugar.
+    // Observação: se algum obrigatório (host/user/password/database) não vier, a conexão falhará no runtime.
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT ?? 5432),
     user: process.env.DB_USER,
@@ -53,6 +54,7 @@ const pool = new Pool({
 // de sessão que impactam desempenho/semântica de durabilidade. 'synchronous_commit = off' devolve
 // o COMMIT antes do fsync do WAL; é ótimo para testes de throughput, mas não deve ser usado
 // em dados críticos de produção.
+// Nota: esta chamada é "fire-and-forget"; não aguardamos o SET concluir aqui. Em produção, trate erros.
 // ==================================================================================================
 pool.on('connect', (client) => {
     client.query([
@@ -61,18 +63,22 @@ pool.on('connect', (client) => {
 });
 
 // Captura erros inesperados do pool (ex.: reset de conexão) sem derrubar o processo inteiro.
+// Em produção, considere logar para observabilidade.
 pool.on('error', () => { });
 
 // ==================================================================================================
 // AJUSTES DE REDE NO SERVIDOR HTTP
 // --------------------------------------------------------------------------------------------------
-// Após o Fastify estar pronto, aplicamos TCP_NODELAY nos sockets. Isso reduz latência de envio
-// de pequenos pacotes (não espera “preencher” buffers). Útil quando as respostas são enxutas.
+// Após o Fastify estar pronto, configuramos timeouts do servidor e aplicamos TCP_NODELAY nos sockets.
+// - keepAliveTimeout: tempo em ms que a conexão ociosa permanece aberta para reuso.
+// - headersTimeout: deve ser MAIOR que keepAliveTimeout (boas práticas do Node >= 14).
+// - requestTimeout: 0 desabilita timeout por request (útil para evitar finalizações prematuras no teste).
+// - TCP_NODELAY: reduz latência de pequenos pacotes ao desabilitar o algoritmo de Nagle.
 // ==================================================================================================
 fastify.after(() => {
     fastify.server.keepAliveTimeout = 60000;
     fastify.server.headersTimeout = 61000;  // sempre maior que o keepAliveTimeout
-    fastify.server.requestTimeout = 0;      // sem deadline que gere K.O. no teste
+    fastify.server.requestTimeout = 0;      // sem deadline que gere K.O. no teste (não recomendado p/ produção)
     fastify.server.on('connection', (socket) => socket.setNoDelay(true));
 });
 
@@ -90,6 +96,7 @@ const ID_MIN = 1, ID_MAX = 5;        // intervalo permitido de IDs de clientes (
 // Abaixo criamos índice e duas funções PL/pgSQL no banco. Colocamos tudo em strings para enviar
 // via pool.query() durante o bootstrap. O índice acelera consultas, e as funções encapsulam a
 // lógica de extrato e de processamento de transações para reduzir ida/volta entre app e banco.
+// Observação para bases grandes: prefira CREATE INDEX CONCURRENTLY (requer cuidados transacionais).
 // ==================================================================================================
 const CREATE_INDEX_SQL = `
 CREATE INDEX IF NOT EXISTS idx_account_id_id_desc ON transactions (account_id, id DESC);
@@ -178,12 +185,12 @@ $$ LANGUAGE plpgsql;
 // ==================================================================================================
 const STMT_GET_EXTRATO = {
     name: 'get-extrato-text',
-    text: 'SELECT get_extrato($1)::text AS extrato_json',
+    text: 'SELECT get_extrato($1)::text',
     rowMode: 'array' // <<< habilita entrega como array
 };
 const STMT_PROCESS_TX = {
     name: 'process-transaction-text',
-    text: 'SELECT process_transaction($1, $2, $3, $4)::text AS response_json',
+    text: 'SELECT process_transaction($1, $2, $3, $4)::text',
     rowMode: 'array' // <<< habilita entrega como array
 };
 const qGetExtrato = (id) => ({ ...STMT_GET_EXTRATO, values: [id] });
@@ -193,16 +200,18 @@ const qProcessTx = (id, v, t, d) => ({ ...STMT_PROCESS_TX, values: [id, v, t, d]
 // ROTAS HTTP
 // --------------------------------------------------------------------------------------------------
 // Cada rota valida a entrada de forma barata e direta, chama a função SQL correspondente e traduz
-// o resultado em um HTTP status coerente (200/404/415/422/500). Isso mantém o servidor previsível
+// o resultado em um HTTP status coerente (200/404/422/500). Isso mantém o servidor previsível
 // sob carga: regras simples, poucos ramos, pouca alocação de objetos.
 // ==================================================================================================
 
 fastify.get('/health', (_req, reply) => {
+    // Endpoint de verificação simples para orquestradores/monitores.
     return reply.code(200).send();
 });
 
 fastify.get('/clientes/:id/extrato', async (request, reply) => {
     // Converte o parâmetro para inteiro rápido (bitwise OR com 0) e valida o intervalo permitido.
+    // A checagem "id !== Number(request.params.id)" garante que seja um número já vindo como Number (não string/float).
     const id = (request.params.id | 0);
     if (id < ID_MIN || id > ID_MAX || id !== Number(request.params.id)) {
         return reply.code(404).send();  // cliente inexistente → 404
@@ -222,6 +231,7 @@ fastify.get('/clientes/:id/extrato', async (request, reply) => {
         }
 
         // Retorna o JSON “como veio” do banco (sem reparsear) com o cabeçalho correto.
+        // Como 'extratoText' já é JSON-texto, Fastify envia o corpo literalmente (sem duplo encode).
         return reply.type(CT_JSON).send(extratoText);
     } catch {
         // Falhas de banco/conexão geram 500 (erro interno).
@@ -238,7 +248,7 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
     }
 
     // Validações de payload baratas e determinísticas:
-    // - valor: inteiro positivo
+    // - valor: inteiro positivo (usa bitwise p/ coerção e checa igualdade p/ garantir que veio Number inteiro)
     const b = request.body;
     const valor = b?.valor | 0;
     if (valor !== b?.valor || valor <= 0) {
@@ -251,7 +261,9 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
         return reply.code(422).send();
     }
 
-    // - descricao: 1..=10 bytes em UTF-8 (limite por BYTES, não por caracteres)
+    // - descricao: 1..=10 bytes em UTF-8 (limite por BYTES, não por caracteres).
+    //   Observação: no Postgres, VARCHAR(10) conta caracteres; aqui contamos bytes por desempenho previsível.
+    //   Para o desafio (ASCII), bytes ≡ caracteres; em textos multibyte, esta regra é mais restritiva.
     const desc = b?.descricao;
     const dlen = (typeof desc === 'string') ? Buffer.byteLength(desc, 'utf8') : 0;
     if (dlen === 0 || dlen > 10) {
@@ -279,6 +291,7 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
 // --------------------------------------------------------------------------------------------------
 // Na inicialização: criamos índice e funções no banco (idempotente), depois “ouvimos” na porta
 // informada pela variável PORT (ou 3000). Qualquer erro fatal encerra o processo com exit 1.
+// Observação: migrações em produção devem ser orquestradas por ferramentas (ex.: pg-migrate, Flyway).
 // ==================================================================================================
 (async () => {
     try {
@@ -289,7 +302,8 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
         const port = Number(process.env.PORT) || 3000;  // porta de escuta HTTP
         await fastify.listen({ port, host: '0.0.0.0' }); // 0.0.0.0 expõe para a rede/container
     } catch {
-        process.exit(1); // falha no bootstrap (ex.: banco inacessível) → encerra para orquestrador reiniciar
+        // Falha no bootstrap (ex.: banco inacessível) → encerra para que o orquestrador reinicie.
+        process.exit(1);
     }
 })();
 
@@ -298,9 +312,4 @@ fastify.post('/clientes/:id/transacoes', async (request, reply) => {
 // --------------------------------------------------------------------------------------------------
 // Ao receber sinais do sistema (SIGTERM/SIGINT), paramos o servidor HTTP e fechamos o pool de
 // conexões. Promises “settled” evitam travamentos até que tudo tenha sido liberado; depois saímos.
-// ==================================================================================================
-function shutdown() {
-    Promise.allSettled([fastify.close(), pool.end()]).finally(() => process.exit(0));
-}
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+// Em orquestradore
