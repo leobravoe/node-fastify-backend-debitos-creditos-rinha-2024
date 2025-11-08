@@ -15,10 +15,6 @@
 const fastify = require('fastify')({
     // Cria uma instância do servidor Fastify; desligamos o logger para reduzir I/O durante benchmarks.
     logger: false,
-    // Trata caminhos de forma sensível a maiúsculas/minúsculas ("/A" é diferente de "/a").
-    caseSensitive: true,
-    // Ignora uma barra final extra na URL ("/rota" e "/rota/" são aceitas do mesmo jeito).
-    ignoreTrailingSlash: true,
 });
 
 // Carrega o cliente nativo (C/C++) do PostgreSQL para obter menor overhead de CPU/GC.
@@ -57,9 +53,7 @@ const pool = new Pool({
 // Nota: esta chamada é "fire-and-forget"; não aguardamos o SET concluir aqui. Em produção, trate erros.
 // ==================================================================================================
 pool.on('connect', (client) => {
-    client.query([
-        "SET synchronous_commit = 'off'"
-    ].join('; '));
+    client.query("SET synchronous_commit = 'off'");
 });
 
 // Captura erros inesperados do pool (ex.: reset de conexão) sem derrubar o processo inteiro.
@@ -99,7 +93,7 @@ const ID_MIN = 1, ID_MAX = 5;        // intervalo permitido de IDs de clientes (
 // Observação para bases grandes: prefira CREATE INDEX CONCURRENTLY (requer cuidados transacionais).
 // ==================================================================================================
 const CREATE_INDEX_SQL = `
-CREATE INDEX IF NOT EXISTS idx_account_id_id_desc ON transactions (account_id, id DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_account_id_id_desc ON transactions (account_id, id DESC);
 `;
 
 const CREATE_EXTRACT_FUNCTION_SQL = `
