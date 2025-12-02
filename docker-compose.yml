@@ -189,9 +189,9 @@ services:
     # Sobe o Nginx somente quando as apps estiverem saudáveis — reduz erros de proxy.
     depends_on:
       app1:
-        condition: service_healthy
+        condition: service_started
       app2:
-        condition: service_healthy
+        condition: service_started
 
     # Limites de recursos do proxy — úteis em testes com ambiente restrito.
     deploy:
