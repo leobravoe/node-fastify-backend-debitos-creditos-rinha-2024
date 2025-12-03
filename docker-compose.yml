@@ -20,8 +20,8 @@ services:
   # como checar se o banco está realmente pronto antes de outras partes usarem.
   # =============================================================================
   postgres:
-    # A imagem base é “postgres:15-alpine”: Postgres 15 sobre Alpine Linux (bem leve).
-    image: postgres:15-alpine
+    # A imagem base é “postgres:15.15-alpine3.22”: Postgres 15.15 sobre Alpine 3.22 (tag fixa e leve).
+    image: postgres:15.15-alpine3.22
 
     # Nome fixo do contêiner facilita logs/diagnósticos (aparece em `docker ps`).
     container_name: postgres
@@ -173,8 +173,8 @@ services:
   # o upstream e as regras de proxy; o healthcheck pode validar uma rota pública.
   # =============================================================================
   nginx:
-    # Imagem leve e popular do Nginx (sobre Alpine). Ideal para proxy.
-    image: nginx:1.29-alpine
+    # Imagem Nginx 1.29.3 sobre Alpine 3.22 (tag fixa e enxuta), ideal para proxy reverso.
+    image: nginx:1.29.3-alpine3.22
     container_name: nginx
 
     # Mapeia a porta 9999 do host para a 9999 do contêiner — ponto único de acesso.

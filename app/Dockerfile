@@ -9,24 +9,26 @@
 
 # [ETAPA 1/7] BASE DA IMAGEM
 # A diretiva `FROM` escolhe um “sistema operacional + runtime” de partida.
-# Aqui pegamos Node.js em Alpine Linux (imagem minúscula, inicialização rápida e menos CVEs).
-# Manter a base enxuta reduz download, tempo de build e consumo de disco.
-FROM node:25-alpine
+# Aqui usamos Node.js 25.2.1 sobre Alpine 3.22 (`node:25.2.1-alpine3.22`), uma combinação
+# enxuta que reduz o tamanho da imagem, acelera download e tende a ter menos CVEs.
+FROM node:25.2.1-alpine3.22
 
 # [ETAPA 2/7] FERRAMENTAS PARA COMPILAR DEPENDÊNCIAS NATIVAS
 # Alguns pacotes do ecossistema Node (ex.: `pg-native`) contêm trechos em C/C++.
 # Para que eles funcionem, a imagem precisa ter compiladores e headers disponíveis no build.
 # `apk` é o gerenciador do Alpine; `--no-cache` evita guardar metadados, mantendo a camada pequena.
-# - build-base: compilações C/C++ (gcc, g++, make)
-# - python3: utilitário exigido pelo node-gyp durante o build
-# - postgresql-dev: headers do Postgres necessários para bindings nativos
-# - curl: útil em verificações e scripts (opcional, mas prático em pipelines)
+# As versões abaixo estão fixadas para garantir builds reprodutíveis sobre Alpine 3.22:
+# - build-base=0.5-r3           → toolchain C/C++ (gcc, g++, make)
+# - python3=3.12.12-r0          → exigido por node-gyp e scripts de build
+# - postgresql17-dev=17.7-r0    → headers do PostgreSQL 17 para bindings nativos
+# - curl=8.14.1-r2              → útil em verificações e scripts
+# - pg_activity=3.5.1-r0        → ferramenta de monitoramento do PostgreSQL (útil para debug/benchmarks)
 RUN apk add --no-cache \
-    build-base \
-    python3 \
-    postgresql-dev \
-    curl \
-    pg_activity
+    build-base=0.5-r3 \
+    python3=3.12.12-r0 \
+    postgresql17-dev=17.7-r0 \
+    curl=8.14.1-r2 \
+    pg_activity=3.5.1-r0
 
 # [ETAPA 3/7] DIRETÓRIO DE TRABALHO
 # `WORKDIR` cria (se não existir) e define a pasta onde os próximos comandos vão rodar.
@@ -43,7 +45,7 @@ COPY ./app/package*.json ./
 # [ETAPA 5/7] INSTALAÇÃO DE DEPENDÊNCIAS DE PRODUÇÃO
 # `npm install --omit=dev` traz só o que o app precisa para RODAR (sem ferramentas de dev).
 # É aqui que as dependências nativas são compiladas usando os pacotes instalados acima.
-# Menos conteúdo = imagem menor e startup mais previsível em produção.
+# As versões das libs Node são controladas pelo `package-lock.json`, garantindo reprodutibilidade.
 RUN npm install --omit=dev
 
 # [ETAPA 6/7] CÓDIGO DA APLICAÇÃO
