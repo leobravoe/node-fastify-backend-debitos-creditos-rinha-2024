@@ -174,7 +174,7 @@ services:
   # =============================================================================
   nginx:
     # Imagem leve e popular do Nginx (sobre Alpine). Ideal para proxy.
-    image: nginx:alpine
+    image: nginx:1.29-alpine
     container_name: nginx
 
     # Mapeia a porta 9999 do host para a 9999 do contêiner — ponto único de acesso.
